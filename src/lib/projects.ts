@@ -9,6 +9,7 @@ export const PROJECTS = [
   "herdr",
   "burnrat",
   "crawlers",
+  "petriarch",
   "scribr",
   "field-notes",
 ] as const;

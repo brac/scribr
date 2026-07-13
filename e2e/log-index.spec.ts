@@ -8,15 +8,19 @@ test("chips filter in place without navigation", async ({ page }) => {
   const totalBefore = await items.count();
   expect(totalBefore).toBeGreaterThan(0);
 
+  // The island hydrates client:lazyidle (post-load, double-rAF, idle slot) —
+  // under full-suite load a click can land before hydration attaches. Astro
+  // drops the ssr attribute from <astro-island> once hydrated; wait for that.
+  await page.locator("astro-island:not([ssr])").first().waitFor();
+
   // Click the particlr chip.
   await page.getByRole("button", { name: "particlr", exact: true }).click();
 
   // URL must not change — client-side filtering only.
   expect(page.url()).toBe(urlBefore);
 
-  // Only particlr posts remain (1 with current fixtures).
-  const filteredCount = await items.count();
-  expect(filteredCount).toBe(1);
+  // Only particlr posts remain (1 published with current fixtures).
+  await expect(items).toHaveCount(1);
   await expect(page.locator("main ul > li")).toContainText("particlr");
 
   // Reset via "all".
