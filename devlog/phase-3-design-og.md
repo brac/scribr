@@ -6,7 +6,7 @@ phase: 3
 tags: [design, fonts, lighthouse, open-graph, astro]
 draft: true
 repo_ref: "phase-3"
-summary: "Phase 3 gives scribr its look — a lab-record aesthetic built on a title block — plus per-post OG cards and a green Lighthouse gate that fought Windows the whole way."
+summary: "Phase 3 gives scribr its look — a lab-record aesthetic built on a title block — plus per-post OG cards and a Lighthouse gate that fought Windows."
 decisions:
   - what: "Render every post as an engineering record with a bordered title-block metadata grid under the h1"
     why: "scribr posts ARE phase artifacts — project/phase/date/repo_ref is real structured metadata, so encoding it as an engineering-drawing title block makes the layout mean something instead of decorating it"
