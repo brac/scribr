@@ -13,15 +13,27 @@ test("chips filter in place without navigation", async ({ page }) => {
   // drops the ssr attribute from <astro-island> once hydrated; wait for that.
   await page.locator("astro-island:not([ssr])").first().waitFor();
 
+  // Derive the expected filtered count from the rendered list itself, so the
+  // test doesn't break every time a post is published.
+  // The project name appears in the entry-meta line ("2026-07-12 · particlr ·
+  // phase 06"), separator-bounded so titles containing "particlr" don't match.
+  const particlrItems = page.locator("main ul > li", {
+    has: page.locator(".entry-meta", { hasText: /· particlr(?: ·|$)/ }),
+  });
+  const particlrCount = await particlrItems.count();
+  expect(particlrCount).toBeGreaterThan(0);
+  expect(particlrCount).toBeLessThan(totalBefore);
+
   // Click the particlr chip.
   await page.getByRole("button", { name: "particlr", exact: true }).click();
 
   // URL must not change — client-side filtering only.
   expect(page.url()).toBe(urlBefore);
 
-  // Only particlr posts remain (1 published with current fixtures).
-  await expect(items).toHaveCount(1);
-  await expect(page.locator("main ul > li")).toContainText("particlr");
+  // Only particlr posts remain — same count as the pre-click meta-line census,
+  // and every remaining item is one of the particlr-meta items.
+  await expect(items).toHaveCount(particlrCount);
+  await expect(particlrItems).toHaveCount(particlrCount);
 
   // Reset via "all".
   await page.getByRole("button", { name: "all", exact: true }).click();
