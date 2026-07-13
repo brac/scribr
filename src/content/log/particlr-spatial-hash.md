@@ -1,0 +1,69 @@
+---
+title: "Rebuilding particlr's spatial hash for 2,500 live particles"
+date: 2026-07-10
+project: particlr
+phase: 5
+tags: [pixijs, performance, spatial-hash]
+draft: false
+summary: "The naive O(n²) neighbor pass died at 800 particles. A 64px-cell spatial hash got us to 2,500 at 3.1ms."
+repo_ref: "a41f9c2"
+decisions:
+  - what: "Fixed 64px cell size instead of adaptive cells"
+    why: "Presets cluster particle sizes tightly; adaptive sizing added a rebuild cost with no measured win"
+    alternatives: ["Adaptive cell sizing per preset", "Quadtree"]
+  - what: "Hash rebuilt every tick rather than incrementally updated"
+    why: "Full rebuild is 0.4ms at 2,500 particles; incremental bookkeeping was slower to write and easier to get wrong"
+    alternatives: ["Incremental insert/remove on movement"]
+benchmarks:
+  - metric: "neighbor pass @ 2500 particles"
+    value: "3.1ms"
+    target: "<4.16ms (240Hz budget)"
+  - metric: "hash rebuild @ 2500 particles"
+    value: "0.4ms"
+    target: "<1ms"
+---
+
+## What shipped
+
+Phase 5 replaces the naive all-pairs neighbor query with a uniform spatial
+hash. Collision-reactive presets (the `ember-*` family and everything using
+`repelNeighbors`) now hold frame budget at 2,500 particles, up from ~800.
+
+The hash lives in `src/sim/spatialHash.ts` and is rebuilt at the top of each
+fixed tick before behaviors run. Behaviors query it through a single
+`neighborsOf(p, radius)` call; no behavior touches particle arrays directly
+anymore.
+
+## Decisions
+
+Cell size was the main argument. Adaptive sizing (cells scaled to the
+preset's max interaction radius) looked right on paper, but measuring it
+showed the rebuild cost eating the win: presets keep particle interaction
+radii within a narrow band, so a fixed 64px cell was never more than one
+extra cell lookup away from optimal. A quadtree was rejected without
+prototyping — rebuild-per-tick favors flat structures, and the sim's
+fixed-timestep loop makes per-tick rebuild the simplest correctness story.
+
+Rebuild-vs-incremental went the same way. Incremental updates only pay off
+when a minority of particles move per tick; in particlr everything moves
+every tick.
+
+## What broke
+
+First implementation hashed on render position, not sim position, which
+worked until interpolation was on — then neighbors flickered at cell
+boundaries at high time scales. Cost an evening. The fix was hashing on the
+fixed-step sim position only, and it exposed that two behaviors were reading
+render position for logic, which is now lint-blocked.
+
+## Numbers
+
+Measured on the usual bench rig (M-series laptop throttled profile, 2,500
+particles, `ember-drift` preset, 10s capture, p95). Neighbor pass went from
+11.8ms all-pairs at 800 particles to 3.1ms hashed at 2,500. Rebuild is
+0.4ms and flat with respect to particle motion, as expected.
+
+## Next
+
+Phase 6 targets the renderer: sprite batching audit and moving per-particle
+tint math into the shader. Goal is 5,000 particles inside the same budget.

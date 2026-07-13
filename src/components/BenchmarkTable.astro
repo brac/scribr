@@ -1,0 +1,36 @@
+---
+interface Benchmark {
+  metric: string;
+  value: string;
+  target: string;
+}
+
+interface Props {
+  benchmarks: Benchmark[];
+}
+
+const { benchmarks } = Astro.props;
+---
+
+{
+  benchmarks.length > 0 && (
+    <table>
+      <thead>
+        <tr>
+          <th>Metric</th>
+          <th>Value</th>
+          <th>Target</th>
+        </tr>
+      </thead>
+      <tbody>
+        {benchmarks.map((b) => (
+          <tr>
+            <td>{b.metric}</td>
+            <td>{b.value}</td>
+            <td>{b.target}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  )
+}

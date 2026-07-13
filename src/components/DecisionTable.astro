@@ -1,0 +1,36 @@
+---
+interface Decision {
+  what: string;
+  why: string;
+  alternatives: string[];
+}
+
+interface Props {
+  decisions: Decision[];
+}
+
+const { decisions } = Astro.props;
+---
+
+{
+  decisions.length > 0 && (
+    <table>
+      <thead>
+        <tr>
+          <th>Decision</th>
+          <th>Why</th>
+          <th>Alternatives rejected</th>
+        </tr>
+      </thead>
+      <tbody>
+        {decisions.map((d) => (
+          <tr>
+            <td>{d.what}</td>
+            <td>{d.why}</td>
+            <td>{d.alternatives.join(", ")}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  )
+}
