@@ -1,5 +1,5 @@
 ---
-title: "Designing scribr as an engineering record: title blocks, OG cards, and a Windows Lighthouse detour"
+title: "Designing scribr as an engineering record: title blocks and OG cards"
 date: 2026-07-13
 project: scribr
 phase: 3

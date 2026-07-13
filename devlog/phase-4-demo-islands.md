@@ -6,7 +6,7 @@ phase: 4
 tags: [islands, pixijs, performance, accessibility, mdx]
 draft: true
 repo_ref: "phase-4"
-summary: "Phase 4 drops a live PixiJS particle demo into the seed post as a lazy Preact island — 283 KB gzipped that only loads on scroll — and fixes the font strategy the LCP gate exposed."
+summary: "Phase 4 drops a live PixiJS demo into the seed post as a lazy island — 283 KB gz loading only on scroll — and fixes the fonts the LCP gate exposed."
 decisions:
   - what: "Let the island own the Pixi Application, ticker, and teardown; load pixi + @particlr/runtime only via dynamic import inside useEffect"
     why: "The runtime is host-driven (no mount-on-canvas factory), and dynamic imports keep the ~283 KB graph out of SSR and out of every other page's chunk graph — the figure ships as an inert shell until it scrolls into view"
