@@ -4,7 +4,7 @@ date: 2026-06-24
 project: "swarmr"
 phase: 5
 tags: [gamedev, weapons, progression, pixijs, typescript]
-draft: true
+draft: false
 summary: "A per-weapon level cap turns the 5th upgrade pick into a one-time evolution, guaranteed as a gold card, reshaping all five weapons with no new subsystems."
 repo_ref: "9923837"
 decisions:
@@ -57,6 +57,8 @@ recipe. The backlog item read literally — "upgraded 5 times, then becomes
 something much more powerful" — so we made the fifth pick *be* the evolution: four
 stat picks accumulate a level, and the fifth is the transform. It needs no
 prerequisite bookkeeping and keeps the whole rule explainable in one sentence.
+Honestly, I think VS's paired-passive recipes are wiki-driven design — a game
+is better when its signature rule fits in one sentence you can learn by playing.
 Level counts picks for that weapon, not which stat, so taking count + rate +
 damage + damage is level 4 and unlocks the evolution.
 
@@ -88,7 +90,8 @@ fork-from-impact tree was the weakest of the five in play. The two commits
 immediately after this one (`ca1bced`, then `82adf93`) reworked its sizing and
 behavior — the splitting tree was ultimately replaced by a reflecting beam. The
 mechanic-first, tune-second order was deliberate, but Prism is the clearest case
-of the first working version not being the one that stuck.
+of the first working version not being the one that stuck. I'd still ship it in
+that order every time — you can't balance a weapon you haven't felt.
 
 ## Numbers
 
