@@ -10,27 +10,40 @@ interface Props {
 }
 
 const { benchmarks } = Astro.props;
+
+// Every row gets a --pass-colored check in the leading column. This is a
+// record of gates PASSED, not a live comparison: benchmarks in these posts are
+// by contract the numbers that satisfied a phase's stop conditions, so the
+// check asserts "this gate was met" rather than recomputing metric vs. target
+// (which would need brittle parsing of mixed comparators like "<", "≤", ">=").
 ---
 
 {
   benchmarks.length > 0 && (
-    <table>
-      <thead>
-        <tr>
-          <th>Metric</th>
-          <th>Value</th>
-          <th>Target</th>
-        </tr>
-      </thead>
-      <tbody>
-        {benchmarks.map((b) => (
+    <div class="table-scroll">
+      <table class="record-table">
+        <caption>Benchmarks</caption>
+        <thead>
           <tr>
-            <td>{b.metric}</td>
-            <td>{b.value}</td>
-            <td>{b.target}</td>
+            <th class="gate" aria-label="gate met">
+              ✓
+            </th>
+            <th>Metric</th>
+            <th>Value</th>
+            <th>Target</th>
           </tr>
-        ))}
-      </tbody>
-    </table>
+        </thead>
+        <tbody>
+          {benchmarks.map((b) => (
+            <tr>
+              <td class="gate">✓</td>
+              <td>{b.metric}</td>
+              <td class="val">{b.value}</td>
+              <td>{b.target}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
   )
 }

@@ -1,15 +1,26 @@
 ---
-// Bare placeholder home page. Uses Base.astro so it carries a canonical URL and
-// feed autodiscovery like every other page. The real landing design is Phase 3.
+// Home page. A quiet landing consistent with the record aesthetic; the full
+// brac.dev landing design is a later phase. Uses Base for the frame, canonical,
+// feeds, and OG card (defaults to /og/log.png). No island → zero scripts.
 import Base from "../layouts/Base.astro";
+import TitleBlock from "../components/TitleBlock.astro";
+import type { Cell } from "../components/TitleBlock.astro";
+
+const cells: Cell[] = [
+  { label: "SITE", value: "brac.dev", marker: true },
+  { label: "STATUS", value: "building" },
+  { label: "LOG", value: "devlog", href: "/log/" },
+];
 ---
 
 <Base
-  title="brac.dev — under construction"
+  title="brac.dev"
   description="brac.dev — projects and the devlog behind them."
 >
-  <h1>brac.dev — under construction</h1>
-  <p>
-    <a href="/log/">Read the devlog</a>
+  <h1>brac.dev</h1>
+  <TitleBlock cells={cells} />
+  <p class="lede">
+    Projects, and the devlog behind them. Start with the
+    <a href="/log/">log</a>.
   </p>
 </Base>

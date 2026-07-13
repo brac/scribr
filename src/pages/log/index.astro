@@ -17,13 +17,16 @@ const chipPosts: ChipPost[] = posts.map((post) => ({
   dateISO: post.data.date.toISOString(),
   dateDisplay: post.data.date.toISOString().slice(0, 10),
   project: post.data.project,
+  phase: post.data.phase,
   summary: post.data.summary,
 }));
 ---
 
-<Base title="devlog — brac.dev" description="Devlog for brac.dev projects: decisions, failures, and numbers from each build phase.">
-  <main>
-    <h1>devlog</h1>
-    <FilterChips posts={chipPosts} client:idle />
-  </main>
+<Base
+  title="devlog — brac.dev"
+  description="Devlog for brac.dev projects: decisions, failures, and numbers from each build phase."
+>
+  <h1>devlog</h1>
+  <p class="lede">Decisions, failures, and numbers from each build phase.</p>
+  <FilterChips posts={chipPosts} client:idle />
 </Base>

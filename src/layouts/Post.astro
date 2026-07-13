@@ -1,6 +1,8 @@
 ---
 import type { CollectionEntry } from "astro:content";
 import Base from "./Base.astro";
+import TitleBlock from "../components/TitleBlock.astro";
+import type { Cell } from "../components/TitleBlock.astro";
 import DecisionTable from "../components/DecisionTable.astro";
 import BenchmarkTable from "../components/BenchmarkTable.astro";
 
@@ -12,36 +14,49 @@ const { post } = Astro.props;
 const { title, date, project, phase, summary, repo_ref, decisions, benchmarks } =
   post.data;
 
-const isoDate = date.toISOString();
 const displayDate = date.toISOString().slice(0, 10);
+const isFieldNotes = project === "field-notes";
+
+// The title block IS the post header metadata (replaces the old loose date/
+// badge/phase <p> and the separate "code as of this post" line). field-notes
+// posts carry no PHASE/REF cell — that absence is the differentiation — and
+// their project cell reads FIELD NOTES (still linked; it's a real enum value).
+const cells: Cell[] = [
+  {
+    label: "PROJECT",
+    value: isFieldNotes ? "FIELD NOTES" : project,
+    href: `/log/${project}/`,
+    marker: true,
+  },
+];
+if (phase !== undefined) {
+  cells.push({ label: "PHASE", value: String(phase).padStart(2, "0") });
+}
+cells.push({ label: "DATE", value: displayDate });
+if (repo_ref) {
+  cells.push({
+    label: "REF",
+    value: repo_ref,
+    href: `https://github.com/brac/${project}/tree/${repo_ref}`,
+  });
+}
 ---
 
-<Base title={title} description={summary} projectFeed={project}>
+<Base
+  title={title}
+  description={summary}
+  projectFeed={project}
+  ogImage={`/og/${post.id}.png`}
+  article
+>
   <article>
     <h1>{title}</h1>
-    <p>
-      <time datetime={isoDate}>{displayDate}</time>
-      <a href={`/log/${project}/`}>{project}</a>
-      {phase !== undefined && <span>Phase {phase}</span>}
-    </p>
+    <TitleBlock cells={cells} />
 
-    {
-      repo_ref && (
-        <p>
-          <a href={`https://github.com/brac/${project}/tree/${repo_ref}`}>
-            code as of this post
-          </a>
-        </p>
-      )
-    }
+    <div class="prose">
+      <slot />
+    </div>
 
-    <slot />
-
-    {/*
-      Per the rendering contract (CONTENT-SCHEMA §3) the decision/benchmark
-      tables belong inline with the "Decisions" / "Numbers" prose sections.
-      For Phase 0 they render after the body; placement polish is Phase 3.
-    */}
     <DecisionTable decisions={decisions} />
     <BenchmarkTable benchmarks={benchmarks} />
   </article>

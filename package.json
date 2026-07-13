@@ -12,18 +12,22 @@
     "test:phase0": "node test/phase-0-schema-gate.mjs",
     "test:phase1": "node test/phase-1-draft-exclusion.mjs && node test/validate-feeds.mjs",
     "test:phase2": "node test/phase-2-sync.mjs",
-    "test:e2e": "playwright test"
+    "test:phase3": "node test/phase-3-meta.mjs",
+    "test:e2e": "playwright test",
+    "test:lighthouse": "node scripts/lighthouse.mjs"
   },
   "dependencies": {
     "@astrojs/mdx": "^7.0.2",
     "@astrojs/preact": "^6.0.1",
     "@astrojs/rss": "^4.0.19",
     "@astrojs/sitemap": "^3.7.3",
-    "astro": "^7.0.7",
+    "astro": "^7.0.8",
+    "astro-og-canvas": "^0.13.0",
     "preact": "^10"
   },
   "devDependencies": {
     "@astrojs/check": "^0.9.9",
+    "@lhci/cli": "^0.15.1",
     "@playwright/test": "^1.61.1",
     "feedparser": "^2.6.0",
     "typescript": "^5",

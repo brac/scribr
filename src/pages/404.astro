@@ -1,0 +1,25 @@
+---
+// 404 page. Astro emits this as a flat dist/404.html even under
+// trailingSlash: "always"; Cloudflare Pages serves it automatically. Title
+// block pastiche + one serif line. noindex, default OG card.
+import Base from "../layouts/Base.astro";
+import TitleBlock from "../components/TitleBlock.astro";
+import type { Cell } from "../components/TitleBlock.astro";
+
+const cells: Cell[] = [
+  { label: "STATUS", value: "404", marker: true },
+  { label: "REF", value: "not-found" },
+];
+---
+
+<Base
+  title="404 — brac.dev"
+  description="This page doesn't exist."
+  noindex
+>
+  <h1>404</h1>
+  <TitleBlock cells={cells} />
+  <p class="lede">
+    This page doesn't exist. The <a href="/log/">log index</a> does.
+  </p>
+</Base>

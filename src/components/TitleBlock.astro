@@ -1,0 +1,40 @@
+---
+// The signature element: the bordered metadata grid from engineering drawings.
+// A record's title block — one row of cells on desktop, 2x2 on mobile. Every
+// cell is real metadata: nothing here is decorative. Rendered generically from
+// a cells array so post / field-notes / 404 all share one structure.
+export interface Cell {
+  label: string;
+  value: string;
+  href?: string;
+  // The ">" drill-down marker on the primary (project/status) cell.
+  marker?: boolean;
+}
+
+interface Props {
+  cells: Cell[];
+}
+
+const { cells } = Astro.props;
+---
+
+<div class="title-block" style={`--cols:${cells.length}`}>
+  {
+    cells.map((cell) => (
+      <div class="cell">
+        <span class="label">{cell.label}</span>
+        {cell.href ? (
+          <a class="value" href={cell.href}>
+            {cell.marker ? "▸ " : ""}
+            {cell.value}
+          </a>
+        ) : (
+          <span class="value">
+            {cell.marker ? "▸ " : ""}
+            {cell.value}
+          </span>
+        )}
+      </div>
+    ))
+  }
+</div>

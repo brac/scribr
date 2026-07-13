@@ -1,20 +1,38 @@
 ---
-// Shared base layout: the <head> boilerplate every page uses. Styling is
-// Phase 3 — this is browser-default HTML on purpose.
+// Shared base layout: the <head> boilerplate and the site frame (header +
+// footer) every page carries. Styling lives in src/styles/global.css.
+import { Font } from "astro:assets";
+import "../styles/global.css";
+
 interface Props {
   title: string;
   description: string;
   // When set, adds a second RSS autodiscovery link for that project's feed.
   projectFeed?: string;
+  // Open Graph card image, an absolute-from-root path like /og/{id}.png.
+  // Defaults to the index card.
+  ogImage?: string;
+  // Posts are og:type "article"; everything else is "website".
+  article?: boolean;
+  // Suppress indexing (used by 404).
+  noindex?: boolean;
 }
 
-const { title, description, projectFeed } = Astro.props;
+const {
+  title,
+  description,
+  projectFeed,
+  ogImage,
+  article,
+  noindex,
+} = Astro.props;
 
 const canonical = new URL(Astro.url.pathname, Astro.site);
 const globalFeed = new URL("rss.xml", Astro.site);
 const projectFeedHref = projectFeed
   ? new URL(`log/${projectFeed}/rss.xml`, Astro.site)
   : undefined;
+const ogImageUrl = new URL(ogImage ?? "/og/log.png", Astro.site);
 ---
 
 <html lang="en">
@@ -23,7 +41,18 @@ const projectFeedHref = projectFeed
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="description" content={description} />
     <title>{title}</title>
+    {noindex && <meta name="robots" content="noindex" />}
     <link rel="canonical" href={canonical} />
+
+    {/* Open Graph / Twitter */}
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={description} />
+    <meta property="og:type" content={article ? "article" : "website"} />
+    <meta property="og:url" content={canonical} />
+    <meta property="og:image" content={ogImageUrl} />
+    <meta property="og:site_name" content="brac.dev" />
+    <meta name="twitter:card" content="summary_large_image" />
+
     <link
       rel="alternate"
       type="application/rss+xml"
@@ -41,8 +70,29 @@ const projectFeedHref = projectFeed
       )
     }
     <link rel="sitemap" href="/sitemap-index.xml" />
+
+    <Font cssVariable="--font-mono" preload />
+    <Font cssVariable="--font-serif" preload />
   </head>
   <body>
-    <slot />
+    <header class="site-header">
+      <div class="page">
+        <a href="/">brac.dev</a>
+        <span class="sep">/</span>
+        <a href="/log/">log</a>
+        <a class="spacer rss" href="/rss.xml">rss</a>
+      </div>
+    </header>
+
+    <main class="page">
+      <slot />
+    </main>
+
+    <footer class="site-footer">
+      <div class="page">
+        © Ben Bracamonte · feeds: <a href="/rss.xml">global</a> /
+        <a href="/log/">per-project</a>
+      </div>
+    </footer>
   </body>
 </html>

@@ -8,11 +8,20 @@ export interface ChipPost {
   dateISO: string;
   dateDisplay: string;
   project: string;
+  phase?: number;
   summary: string;
 }
 
 interface Props {
   posts: ChipPost[];
+}
+
+function metaLine(post: ChipPost): string {
+  const parts = [post.dateDisplay, post.project];
+  if (post.phase !== undefined) {
+    parts.push(`phase ${String(post.phase).padStart(2, "0")}`);
+  }
+  return parts.join(" · ");
 }
 
 // This island server-renders the full chip row and the complete post list, so
@@ -36,7 +45,7 @@ export default function FilterChips({ posts }: Props) {
 
   return (
     <div>
-      <div role="group" aria-label="Filter by project">
+      <div class="chips" role="group" aria-label="Filter by project">
         <button
           type="button"
           aria-pressed={active === null}
@@ -56,13 +65,14 @@ export default function FilterChips({ posts }: Props) {
         ))}
       </div>
 
-      <ul>
+      <ul class="entries">
         {visible.map((post) => (
           <li key={post.id}>
-            <a href={`/log/${post.id}/`}>{post.title}</a>
-            <time datetime={post.dateISO}>{post.dateDisplay}</time>
-            <span>{post.project}</span>
-            <p>{post.summary}</p>
+            <div class="entry-meta">{metaLine(post)}</div>
+            <div class="entry-title">
+              <a href={`/log/${post.id}/`}>{post.title}</a>
+            </div>
+            <p class="entry-summary">{post.summary}</p>
           </li>
         ))}
       </ul>

@@ -46,3 +46,16 @@ test("post page smoke: seed post returns 200 with its h1", async ({ page }) => {
     "Rebuilding particlr's spatial hash"
   );
 });
+
+test("post page has no horizontal overflow at 360px", async ({ browser }) => {
+  // The record tables and title block must scroll/wrap within the viewport,
+  // never push the page wider than the screen on a narrow phone.
+  const context = await browser.newContext({ viewport: { width: 360, height: 780 } });
+  const page = await context.newPage();
+  await page.goto("/log/particlr-spatial-hash/");
+  const scrollWidth = await page.evaluate(
+    () => document.documentElement.scrollWidth
+  );
+  expect(scrollWidth).toBeLessThanOrEqual(360);
+  await context.close();
+});

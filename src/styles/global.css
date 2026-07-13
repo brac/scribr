@@ -1,0 +1,453 @@
+/*
+  scribr global stylesheet — the engineering-record aesthetic.
+  Design tokens + a ~10-line inline normalize + component classes.
+  No framework, no reset library. Font family CSS variables (--font-mono,
+  --font-serif) are injected by Astro's <Font> component; we reference them
+  with system fallbacks so text is never invisible before they resolve.
+*/
+
+/* ---- tokens ---------------------------------------------------------- */
+:root {
+  /* light — "bond paper", deliberately cool, not warm cream */
+  --paper: #f6f7f5; /* page */
+  --panel: #fdfdfc; /* table / title-block fill */
+  --ink: #1a1d1b; /* text */
+  --graphite: #57605b; /* secondary text, labels (>=4.5:1 on --paper) */
+  --rule: #d5dad6; /* borders / hairlines */
+  --pass: #1d7a4f; /* semantic: gates passed */
+  --broke: #b3402e; /* semantic: failure / "What broke" marker */
+
+  --mono: var(--font-mono, ui-monospace, "SFMono-Regular", monospace);
+  --serif: var(--font-serif, Georgia, "Times New Roman", serif);
+
+  --measure: 68ch; /* body text measure */
+  --column: 44rem; /* page frame width */
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --paper: #151815;
+    --panel: #1c201d;
+    --ink: #e4e8e4;
+    --graphite: #9aa49e; /* >=4.5:1 on dark --paper */
+    --rule: #2d332f;
+    --pass: #43b37f;
+    --broke: #e0654f;
+  }
+}
+
+/* ---- normalize (inline, minimal modern) ------------------------------ */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+* {
+  margin: 0;
+}
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+body {
+  min-height: 100vh;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+img,
+picture,
+svg {
+  display: block;
+  max-width: 100%;
+}
+a {
+  color: inherit;
+}
+button {
+  font: inherit;
+  color: inherit;
+}
+
+/* ---- page frame ------------------------------------------------------ */
+body {
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--serif);
+  font-size: 1.0625rem;
+  display: flex;
+  flex-direction: column;
+}
+
+.page {
+  width: 100%;
+  max-width: var(--column);
+  margin-inline: auto;
+  padding-inline: 1.25rem;
+}
+
+main.page {
+  flex: 1 0 auto;
+  padding-block: 2rem 3rem;
+}
+
+/* ---- site header / footer ------------------------------------------- */
+.site-header {
+  border-bottom: 1px solid var(--rule);
+}
+.site-header .page {
+  display: flex;
+  align-items: baseline;
+  gap: 1rem;
+  padding-block: 0.9rem;
+  font-family: var(--mono);
+  font-size: 0.85rem;
+}
+.site-header a {
+  text-decoration: none;
+  color: var(--ink);
+}
+.site-header a:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.site-header .sep {
+  color: var(--graphite);
+}
+.site-header .spacer {
+  margin-left: auto;
+}
+.site-header .rss {
+  color: var(--graphite);
+}
+
+.site-footer {
+  border-top: 1px solid var(--rule);
+}
+.site-footer .page {
+  padding-block: 1.1rem;
+  font-family: var(--mono);
+  font-size: 0.78rem;
+  color: var(--graphite);
+}
+.site-footer a {
+  color: var(--graphite);
+  text-decoration: none;
+}
+.site-footer a:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+/* ---- headings -------------------------------------------------------- */
+h1 {
+  font-family: var(--mono);
+  font-weight: 600;
+  font-size: clamp(1.5rem, 4vw, 2.25rem);
+  line-height: 1.15;
+  letter-spacing: -0.01em;
+  color: var(--ink);
+}
+
+/* Section stamps: mono, small, uppercase, preceded by a short rule.
+   Astro auto-slugs headings, so the "What broke" section (id="what-broke")
+   turns its stamp rule --broke — the only structural use of the fail color
+   in these posts. */
+.prose h2 {
+  font-family: var(--mono);
+  font-weight: 600;
+  font-size: 0.95rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--graphite);
+  margin-top: 2.25rem;
+  margin-bottom: 0.75rem;
+}
+.prose h2::before {
+  content: "";
+  display: block;
+  width: 2.25rem;
+  height: 2px;
+  margin-bottom: 0.7rem;
+  background: var(--rule);
+}
+.prose h2[id="what-broke"]::before {
+  background: var(--broke);
+}
+.prose h3 {
+  font-family: var(--mono);
+  font-weight: 600;
+  font-size: 0.9rem;
+  color: var(--ink);
+  margin-top: 1.75rem;
+  margin-bottom: 0.5rem;
+}
+
+/* ---- prose body ------------------------------------------------------ */
+.prose {
+  font-family: var(--serif);
+  font-size: 1.0625rem;
+  line-height: 1.65;
+  color: var(--ink);
+}
+.prose > * {
+  max-width: var(--measure);
+}
+.prose p,
+.prose ul,
+.prose ol {
+  margin-block: 1rem;
+}
+.prose ul,
+.prose ol {
+  padding-left: 1.4rem;
+}
+.prose li {
+  margin-block: 0.35rem;
+}
+.prose em {
+  font-style: italic;
+}
+.prose strong {
+  font-weight: 600;
+}
+.prose code {
+  font-family: var(--mono);
+  font-size: 0.9em;
+  background: var(--panel);
+  border: 1px solid var(--rule);
+  border-radius: 2px;
+  padding: 0.05em 0.35em;
+}
+.prose pre {
+  font-family: var(--mono);
+  background: var(--panel);
+  border: 1px solid var(--rule);
+  border-radius: 2px;
+  padding: 0.9rem 1rem;
+  overflow-x: auto;
+  margin-block: 1rem;
+}
+.prose pre code {
+  border: 0;
+  background: none;
+  padding: 0;
+}
+
+/* Serif body links: underlined, hover shifts underline to --pass. */
+.prose a {
+  color: var(--ink);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  text-decoration-color: var(--rule);
+  transition: text-decoration-color 150ms ease;
+}
+.prose a:hover {
+  text-decoration-color: var(--pass);
+}
+
+/* ---- title block (signature) ---------------------------------------- */
+.title-block {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1px;
+  background: var(--rule); /* shows through gaps as 1px hairlines */
+  border: 1px solid var(--rule);
+  border-radius: 2px;
+  overflow: hidden;
+  margin-block: 1.1rem 1.75rem;
+  font-family: var(--mono);
+  font-size: 0.8rem;
+}
+@media (min-width: 34rem) {
+  .title-block {
+    grid-template-columns: repeat(var(--cols, 4), minmax(0, 1fr));
+  }
+}
+.title-block .cell {
+  background: var(--panel);
+  padding: 0.55rem 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  min-width: 0;
+}
+.title-block .label {
+  color: var(--graphite);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-size: 0.7rem;
+}
+.title-block .value {
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+.title-block a.value {
+  text-decoration: none;
+}
+.title-block a.value:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+/* ---- record tables (decision / benchmark) --------------------------- */
+.table-scroll {
+  overflow-x: auto;
+  margin-block: 1.25rem;
+  border: 1px solid var(--rule);
+  border-radius: 2px;
+}
+.record-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: var(--mono);
+  font-size: 0.85rem;
+  background: var(--panel);
+}
+.record-table caption {
+  text-align: left;
+  font-family: var(--mono);
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--graphite);
+  padding: 0.6rem 0.85rem 0;
+  caption-side: top;
+}
+.record-table th,
+.record-table td {
+  text-align: left;
+  padding: 0.55rem 0.85rem;
+  border-bottom: 1px solid var(--rule);
+  vertical-align: top;
+}
+.record-table thead th {
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--graphite);
+}
+.record-table tbody tr:last-child th,
+.record-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+.record-table .val {
+  color: var(--ink);
+  font-weight: 600;
+}
+.record-table .gate {
+  color: var(--pass);
+  width: 1.5rem;
+  text-align: center;
+  font-weight: 600;
+}
+
+/* ---- index / listing entries ---------------------------------------- */
+.lede {
+  font-family: var(--serif);
+  font-size: 1.0625rem;
+  color: var(--graphite);
+  margin-block: 0.5rem 1.5rem;
+  max-width: var(--measure);
+}
+.lede a {
+  color: var(--ink);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  text-decoration-color: var(--rule);
+  transition: text-decoration-color 150ms ease;
+}
+.lede a:hover {
+  text-decoration-color: var(--pass);
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-block: 1.25rem;
+}
+.chips button {
+  font-family: var(--mono);
+  font-size: 0.8rem;
+  padding: 0.3rem 0.7rem;
+  border: 1px solid var(--rule);
+  border-radius: 2px;
+  background: transparent;
+  color: var(--ink);
+  cursor: pointer;
+  transition:
+    background 150ms ease,
+    color 150ms ease;
+}
+.chips button[aria-pressed="true"] {
+  background: var(--ink);
+  color: var(--paper);
+  border-color: var(--ink);
+}
+
+.entries {
+  list-style: none;
+  padding: 0;
+}
+.entries li {
+  padding-block: 1.25rem;
+  border-bottom: 1px solid var(--rule);
+}
+.entries li:first-child {
+  padding-top: 0.5rem;
+}
+.entry-meta {
+  font-family: var(--mono);
+  font-size: 0.78rem;
+  color: var(--graphite);
+  margin-bottom: 0.35rem;
+}
+.entry-title {
+  font-family: var(--serif);
+  font-size: 1.25rem;
+  font-weight: 600;
+  line-height: 1.25;
+}
+.entry-title a {
+  color: var(--ink);
+  text-decoration: none;
+}
+.entry-title a:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  text-decoration-color: var(--pass);
+}
+.entry-summary {
+  font-family: var(--serif);
+  color: var(--graphite);
+  margin-top: 0.35rem;
+  max-width: var(--measure);
+}
+.empty-state {
+  font-family: var(--serif);
+  color: var(--graphite);
+  margin-block: 1.5rem;
+}
+
+/* project listing header strip — reuses the title-block look */
+.strip {
+  margin-block: 1rem 1.5rem;
+}
+
+/* ---- focus: visible keyboard focus everywhere ----------------------- */
+:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+}
+
+/* ---- motion kill-switch (future-proof, zero cost today) ------------- */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+}
