@@ -435,6 +435,90 @@ h1 {
   margin-block: 1rem 1.5rem;
 }
 
+/* ---- particlr demo island ------------------------------------------- */
+/* The figure reads as a sibling of the record tables: 1px --rule border,
+   --panel caption bar, mono caption. The stage is a fixed 16/9 box so the
+   reserved space is identical before and after hydration — no layout shift
+   when the canvas attaches. */
+.demo {
+  margin-block: 1.5rem;
+  max-width: var(--measure);
+}
+.demo-stage {
+  position: relative;
+  aspect-ratio: 16 / 9;
+  /* Always dark, in BOTH color schemes — hardcoded (the dark --paper value)
+     on purpose, so it must NOT flip with prefers-color-scheme. Same rationale
+     as the always-dark OG cards: the demo renders luminous, additive-blended
+     content (glowing embers) that reads as faint pale smudges on a light
+     panel. Like an embedded video, the stage keeps its own darkness while the
+     border and caption bar follow the theme. */
+  background: #151815;
+  border: 1px solid var(--rule);
+  border-radius: 2px 2px 0 0;
+  overflow: hidden;
+}
+.demo-stage canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+.demo-error {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  font-family: var(--mono);
+  font-size: 0.8rem;
+  /* Hardcoded dark-scheme --broke: this text sits on the always-dark stage,
+     where the light scheme's darker red would lack contrast. */
+  color: #e0654f;
+  text-align: center;
+}
+.demo-caption {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--rule);
+  border-top: 0;
+  border-radius: 0 0 2px 2px;
+  background: var(--panel);
+  font-family: var(--mono);
+  font-size: 0.8rem;
+  color: var(--graphite);
+}
+.demo-label {
+  overflow-wrap: anywhere;
+}
+/* Same treatment as the filter chips. */
+.demo-toggle {
+  flex: none;
+  font-family: var(--mono);
+  font-size: 0.8rem;
+  padding: 0.3rem 0.7rem;
+  border: 1px solid var(--rule);
+  border-radius: 2px;
+  background: transparent;
+  color: var(--ink);
+  cursor: pointer;
+  transition:
+    background 150ms ease,
+    color 150ms ease;
+}
+.demo-toggle[aria-pressed="true"] {
+  background: var(--ink);
+  color: var(--paper);
+  border-color: var(--ink);
+}
+.demo-toggle:disabled {
+  cursor: default;
+  opacity: 0.55;
+}
+
 /* ---- focus: visible keyboard focus everywhere ----------------------- */
 :focus-visible {
   outline: 2px solid var(--ink);

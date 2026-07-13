@@ -71,8 +71,16 @@ const ogImageUrl = new URL(ogImage ?? "/og/log.png", Astro.site);
     }
     <link rel="sitemap" href="/sitemap-index.xml" />
 
+    {/* Preload only the faces that paint above the fold: both mono weights
+        (header nav at 400, h1 at 600) and the serif regular that renders the
+        LCP paragraph. Serif italic/semibold load on CSS discovery — keeping
+        them off the preload critical path removes ~60 KB of contention under
+        Lighthouse's simulated mobile throttling. */}
     <Font cssVariable="--font-mono" preload />
-    <Font cssVariable="--font-serif" preload />
+    <Font
+      cssVariable="--font-serif"
+      preload={[{ weight: 400, style: "normal" }]}
+    />
   </head>
   <body>
     <header class="site-header">

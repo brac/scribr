@@ -10,8 +10,8 @@ import { dirname, join } from "node:path";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const root = join(__dirname, "..");
-const seed = join(root, "src", "content", "log", "particlr-spatial-hash.md");
-const backup = join(__dirname, "particlr-spatial-hash.md.bak");
+const seed = join(root, "src", "content", "log", "particlr-spatial-hash.mdx");
+const backup = join(__dirname, "particlr-spatial-hash.mdx.bak");
 
 function build() {
   const r = spawnSync("npm", ["run", "build"], {

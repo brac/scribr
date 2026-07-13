@@ -21,8 +21,10 @@
     "@astrojs/preact": "^6.0.1",
     "@astrojs/rss": "^4.0.19",
     "@astrojs/sitemap": "^3.7.3",
+    "@particlr/runtime": "^0.4.2",
     "astro": "^7.0.8",
     "astro-og-canvas": "^0.13.0",
+    "pixi.js": "^8.19.0",
     "preact": "^10"
   },
   "devDependencies": {
@@ -31,6 +33,7 @@
     "@playwright/test": "^1.61.1",
     "feedparser": "^2.6.0",
     "typescript": "^5",
+    "wawoff2": "^2.0.1",
     "yaml": "^2.9.0"
   }
 }

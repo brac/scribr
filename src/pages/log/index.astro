@@ -28,5 +28,9 @@ const chipPosts: ChipPost[] = posts.map((post) => ({
 >
   <h1>devlog</h1>
   <p class="lede">Decisions, failures, and numbers from each build phase.</p>
-  <FilterChips posts={chipPosts} client:idle />
+  {/* client:lazyidle (not client:idle): hydrates after load + double-rAF so
+      the chips' JS fetches can never land inside the LCP window — see
+      src/directives/lazyidle.mjs. The chips are server-rendered and fully
+      visible either way; hydration only enables filtering. */}
+  <FilterChips posts={chipPosts} client:lazyidle />
 </Base>

@@ -23,6 +23,8 @@ benchmarks:
     target: "<1ms"
 ---
 
+import ParticlrDemo from "../../components/ParticlrDemo";
+
 ## What shipped
 
 Phase 5 replaces the naive all-pairs neighbor query with a uniform spatial
@@ -62,6 +64,10 @@ Measured on the usual bench rig (M-series laptop throttled profile, 2,500
 particles, `ember-drift` preset, 10s capture, p95). Neighbor pass went from
 11.8ms all-pairs at 800 particles to 3.1ms hashed at 2,500. Rebuild is
 0.4ms and flat with respect to particle motion, as expected.
+
+*Live demo — the `ember-field` preset running on the current runtime build.*
+
+<ParticlrDemo preset="ember-field" client:visible />
 
 ## Next
 

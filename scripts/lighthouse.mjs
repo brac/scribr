@@ -12,6 +12,7 @@
 
 import { spawn, spawnSync } from "node:child_process";
 import { createServer } from "node:http";
+import { createGzip } from "node:zlib";
 import { createReadStream, existsSync, mkdtempSync, rmSync, statSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, extname } from "node:path";
@@ -38,6 +39,10 @@ const thresholds = Object.fromEntries(
     v[1].minScore,
   ])
 );
+// Optional per-audit numeric ceilings ({ auditId: maxNumericValue }), asserted
+// on every URL. lhci's own assertions are category-only in our runner, so this
+// map is the single source of truth for numeric audit gates (e.g. LCP).
+const audits = rc.ci.assert.audits ?? {};
 const CATEGORIES = ["performance", "accessibility", "best-practices", "seo"];
 
 // ---- 1. build ----
@@ -67,6 +72,12 @@ function resolveFile(urlPath) {
   if (existsSync(idx) && statSync(idx).isFile()) return idx;
   return null;
 }
+// Compressible text types get gzip when the client accepts it. Production
+// (Cloudflare Pages) always serves compressed; without this the gate's Lantern
+// simulation charges pages their RAW byte size (an inlined-CSS post page is
+// ~21 KB raw vs ~7 KB gzipped), which spills the document across extra
+// simulated TCP windows and inflates LCP beyond anything a real deploy sees.
+const COMPRESSIBLE = new Set([".html", ".css", ".js", ".xml", ".svg", ".txt", ".json"]);
 const server = createServer((req, res) => {
   const file = resolveFile(req.url || "/");
   if (!file) {
@@ -75,7 +86,13 @@ const server = createServer((req, res) => {
     return;
   }
   res.setHeader("Content-Type", MIME[extname(file)] || "application/octet-stream");
-  createReadStream(file).pipe(res);
+  const acceptsGzip = /\bgzip\b/.test(req.headers["accept-encoding"] || "");
+  if (acceptsGzip && COMPRESSIBLE.has(extname(file))) {
+    res.setHeader("Content-Encoding", "gzip");
+    createReadStream(file).pipe(createGzip()).pipe(res);
+  } else {
+    createReadStream(file).pipe(res);
+  }
 });
 
 const freePort = () =>
@@ -139,6 +156,7 @@ try {
     const target = u.toString();
 
     const scores = Object.fromEntries(CATEGORIES.map((c) => [c, []]));
+    const auditVals = Object.fromEntries(Object.keys(audits).map((a) => [a, []]));
     for (let i = 0; i < runs; i++) {
       const result = await lighthouse(target, {
         port: debugPort,
@@ -147,6 +165,9 @@ try {
       });
       for (const c of CATEGORIES) {
         scores[c].push(result.lhr.categories[c].score);
+      }
+      for (const a of Object.keys(audits)) {
+        auditVals[a].push(result.lhr.audits[a]?.numericValue ?? NaN);
       }
     }
 
@@ -159,6 +180,14 @@ try {
       if (!pass) failures++;
       console.log(
         `  ${pass ? "PASS" : "FAIL"}  ${c.padEnd(16)} ${pct}  (>= ${Math.round(min * 100)})  [runs: ${scores[c].map((s) => Math.round(s * 100)).join(",")}]`
+      );
+    }
+    for (const [a, max] of Object.entries(audits)) {
+      const m = median(auditVals[a]);
+      const pass = Number.isFinite(m) && m <= max;
+      if (!pass) failures++;
+      console.log(
+        `  ${pass ? "PASS" : "FAIL"}  ${a.padEnd(16)} ${Math.round(m)}ms  (<= ${max}ms)  [runs: ${auditVals[a].map((v) => Math.round(v)).join(",")}]`
       );
     }
   }

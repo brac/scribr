@@ -62,6 +62,27 @@ function walk(dir) {
 const count = (html, re) => (html.match(re) || []).length;
 const rel = (f) => relative(dist, f).split(sep).join("/");
 
+// Zero-JS discipline for post pages, amended for MDX demo islands: a post with
+// no island must ship zero <script> tags at all; a post carrying an
+// <astro-island> (the client:visible particlr demo) legitimately inlines the
+// two small hydration bootstraps, but everything heavy must stay lazy — so
+// assert no external <script src=> and no <link rel="modulepreload"> (the
+// pixi+runtime graph loads only from the island's component-url on visibility).
+function assertPostScripts(html, r) {
+  if (/<astro-island/.test(html)) {
+    report(
+      `${r}: island post has no external <script src=`,
+      count(html, /<script\b[^>]*\bsrc=/g) === 0
+    );
+    report(
+      `${r}: island post has no modulepreload`,
+      count(html, /rel="modulepreload"/g) === 0
+    );
+  } else {
+    report(`${r}: zero <script tags`, count(html, /<script/g) === 0);
+  }
+}
+
 const allFiles = walk(dist);
 const htmlFiles = allFiles.filter((f) => f.endsWith(".html"));
 
@@ -108,7 +129,7 @@ for (const f of postPages) {
   const r = rel(f);
   const og = html.match(/<meta property="og:type" content="([^"]+)"/);
   report(`${r}: og:type == article`, og && og[1] === "article", og && og[1]);
-  report(`${r}: zero <script tags`, count(html, /<script/g) === 0);
+  assertPostScripts(html, r);
 
   const hasBlock = /<div class="title-block"/.test(html);
   report(`${r}: title block present`, hasBlock);
@@ -142,7 +163,9 @@ for (const f of htmlFiles) {
       `${r}: ships the island (>=1 <script)`,
       count(html, /<script/g) >= 1
     );
-  } else if (kind === "home" || kind === "listing" || kind === "post" || kind === "notfound") {
+  } else if (kind === "post") {
+    assertPostScripts(html, r);
+  } else if (kind === "home" || kind === "listing" || kind === "notfound") {
     report(`${r}: zero <script tags`, count(html, /<script/g) === 0);
   }
 }
