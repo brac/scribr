@@ -33,6 +33,13 @@ const projectFeedHref = projectFeed
   ? new URL(`log/${projectFeed}/rss.xml`, Astro.site)
   : undefined;
 const ogImageUrl = new URL(ogImage ?? "/og/log.png", Astro.site);
+
+// Vercel Web Analytics (replaces SPEC #14's Umami-on-droplet — recorded in the
+// phase-5 devlog). Evaluated at build time: the tag exists ONLY in Vercel
+// production builds (VERCEL_ENV is unset locally, "preview" on previews), so
+// local dev, the local test/lighthouse gates, and preview deployments all stay
+// script-free and never report a pageview.
+const analytics = process.env.VERCEL_ENV === "production";
 ---
 
 <html lang="en">
@@ -81,6 +88,8 @@ const ogImageUrl = new URL(ogImage ?? "/og/log.png", Astro.site);
       cssVariable="--font-serif"
       preload={[{ weight: 400, style: "normal" }]}
     />
+
+    {analytics && <script defer src="/_vercel/insights/script.js"></script>}
   </head>
   <body>
     <header class="site-header">
