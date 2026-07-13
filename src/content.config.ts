@@ -25,7 +25,7 @@ const log = defineCollection({
       // of silently forking a feed. Values live in src/lib/projects.ts, the
       // single source of truth shared with routes, feeds, and the sync script.
       project: z.enum(PROJECTS),
-      phase: z.number().int().positive().optional(), // absent for field-notes
+      phase: z.number().int().nonnegative().optional(), // absent for field-notes; 0 is valid (scribr's Phase 0)
       tags: z.array(z.string().regex(/^[a-z0-9-]+$/)).min(1).max(5),
       draft: z.boolean().default(true),
       summary: z.string().min(20).max(160),

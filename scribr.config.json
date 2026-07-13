@@ -1,0 +1,7 @@
+{
+  "contentDir": "src/content/log",
+  "sources": [
+    { "project": "particlr", "repo": "https://github.com/brac/particlr.git", "branch": "main" },
+    { "project": "scribr",   "repo": "https://github.com/brac/scribr.git",   "branch": "main" }
+  ]
+}

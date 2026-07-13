@@ -39,7 +39,7 @@ const log = defineCollection({
       "scribr",
       "field-notes", // ad-hoc manual posts not tied to a project phase
     ]),
-    phase: z.number().int().positive().optional(), // absent for field-notes
+    phase: z.number().int().nonnegative().optional(), // absent for field-notes; 0 is valid (phase-gated projects start at Phase 0)
     tags: z.array(z.string().regex(/^[a-z0-9-]+$/)).min(1).max(5),
     draft: z.boolean().default(true),
     summary: z.string().min(20).max(160),

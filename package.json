@@ -8,8 +8,10 @@
     "build": "astro build",
     "preview": "astro preview",
     "check": "astro check",
+    "sync": "node scripts/sync.mjs",
     "test:phase0": "node test/phase-0-schema-gate.mjs",
     "test:phase1": "node test/phase-1-draft-exclusion.mjs && node test/validate-feeds.mjs",
+    "test:phase2": "node test/phase-2-sync.mjs",
     "test:e2e": "playwright test"
   },
   "dependencies": {
@@ -24,6 +26,7 @@
     "@astrojs/check": "^0.9.9",
     "@playwright/test": "^1.61.1",
     "feedparser": "^2.6.0",
-    "typescript": "^5"
+    "typescript": "^5",
+    "yaml": "^2.9.0"
   }
 }
