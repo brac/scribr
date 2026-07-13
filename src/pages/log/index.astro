@@ -1,0 +1,29 @@
+---
+import { getCollection } from "astro:content";
+import { published } from "../../lib/published";
+import Base from "../../layouts/Base.astro";
+import FilterChips from "../../components/FilterChips.tsx";
+import type { ChipPost } from "../../components/FilterChips.tsx";
+
+const posts = (await getCollection("log"))
+  .filter(published)
+  .sort((a, b) => b.data.date.getTime() - a.data.date.getTime());
+
+// Pre-stringify into plain serializable objects before handing to the island —
+// no CollectionEntry objects or Date instances cross the boundary.
+const chipPosts: ChipPost[] = posts.map((post) => ({
+  id: post.id,
+  title: post.data.title,
+  dateISO: post.data.date.toISOString(),
+  dateDisplay: post.data.date.toISOString().slice(0, 10),
+  project: post.data.project,
+  summary: post.data.summary,
+}));
+---
+
+<Base title="devlog — brac.dev" description="Devlog for brac.dev projects: decisions, failures, and numbers from each build phase.">
+  <main>
+    <h1>devlog</h1>
+    <FilterChips posts={chipPosts} client:idle />
+  </main>
+</Base>

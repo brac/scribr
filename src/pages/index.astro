@@ -1,17 +1,15 @@
 ---
-// Bare placeholder. The /log index is Phase 1.
+// Bare placeholder home page. Uses Base.astro so it carries a canonical URL and
+// feed autodiscovery like every other page. The real landing design is Phase 3.
+import Base from "../layouts/Base.astro";
 ---
 
-<html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>brac.dev — under construction</title>
-  </head>
-  <body>
-    <h1>brac.dev — under construction</h1>
-    <p>
-      <a href="/log/particlr-spatial-hash">Read the first post</a>
-    </p>
-  </body>
-</html>
+<Base
+  title="brac.dev — under construction"
+  description="brac.dev — projects and the devlog behind them."
+>
+  <h1>brac.dev — under construction</h1>
+  <p>
+    <a href="/log/">Read the devlog</a>
+  </p>
+</Base>

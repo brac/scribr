@@ -1,6 +1,7 @@
 import { defineCollection } from "astro:content";
 import { glob } from "astro/loaders";
 import { z } from "astro/zod";
+import { PROJECTS } from "./lib/projects";
 
 const decision = z.object({
   what: z.string().min(1),
@@ -20,18 +21,10 @@ const log = defineCollection({
     .object({
       title: z.string().min(8).max(90),
       date: z.coerce.date(),
-      project: z.enum([
-        // extend as projects are added; enum (not free string) so a typo
-        // ("particlrr") fails the build instead of silently forking a feed
-        "particlr",
-        "haulr",
-        "swarmr",
-        "herdr",
-        "burnrat",
-        "crawlers",
-        "scribr",
-        "field-notes", // ad-hoc manual posts not tied to a project phase
-      ]),
+      // enum (not free string) so a typo ("particlrr") fails the build instead
+      // of silently forking a feed. Values live in src/lib/projects.ts, the
+      // single source of truth shared with routes, feeds, and the sync script.
+      project: z.enum(PROJECTS),
       phase: z.number().int().positive().optional(), // absent for field-notes
       tags: z.array(z.string().regex(/^[a-z0-9-]+$/)).min(1).max(5),
       draft: z.boolean().default(true),

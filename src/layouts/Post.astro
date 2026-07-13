@@ -1,5 +1,6 @@
 ---
 import type { CollectionEntry } from "astro:content";
+import Base from "./Base.astro";
 import DecisionTable from "../components/DecisionTable.astro";
 import BenchmarkTable from "../components/BenchmarkTable.astro";
 
@@ -15,41 +16,33 @@ const isoDate = date.toISOString();
 const displayDate = date.toISOString().slice(0, 10);
 ---
 
-<html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="description" content={summary} />
-    <title>{title}</title>
-  </head>
-  <body>
-    <article>
-      <h1>{title}</h1>
-      <p>
-        <time datetime={isoDate}>{displayDate}</time>
-        <a href={`/log/${project}`}>{project}</a>
-        {phase !== undefined && <span>Phase {phase}</span>}
-      </p>
+<Base title={title} description={summary} projectFeed={project}>
+  <article>
+    <h1>{title}</h1>
+    <p>
+      <time datetime={isoDate}>{displayDate}</time>
+      <a href={`/log/${project}/`}>{project}</a>
+      {phase !== undefined && <span>Phase {phase}</span>}
+    </p>
 
-      {
-        repo_ref && (
-          <p>
-            <a href={`https://github.com/brac/${project}/tree/${repo_ref}`}>
-              code as of this post
-            </a>
-          </p>
-        )
-      }
+    {
+      repo_ref && (
+        <p>
+          <a href={`https://github.com/brac/${project}/tree/${repo_ref}`}>
+            code as of this post
+          </a>
+        </p>
+      )
+    }
 
-      <slot />
+    <slot />
 
-      {/*
-        Per the rendering contract (CONTENT-SCHEMA §3) the decision/benchmark
-        tables belong inline with the "Decisions" / "Numbers" prose sections.
-        For Phase 0 they render after the body; placement polish is Phase 3.
-      */}
-      <DecisionTable decisions={decisions} />
-      <BenchmarkTable benchmarks={benchmarks} />
-    </article>
-  </body>
-</html>
+    {/*
+      Per the rendering contract (CONTENT-SCHEMA §3) the decision/benchmark
+      tables belong inline with the "Decisions" / "Numbers" prose sections.
+      For Phase 0 they render after the body; placement polish is Phase 3.
+    */}
+    <DecisionTable decisions={decisions} />
+    <BenchmarkTable benchmarks={benchmarks} />
+  </article>
+</Base>

@@ -1,0 +1,48 @@
+---
+import { getCollection } from "astro:content";
+import { published } from "../../../lib/published";
+import { PROJECTS } from "../../../lib/projects";
+import Base from "../../../layouts/Base.astro";
+
+export async function getStaticPaths() {
+  // All enum values, even currently-empty ones — stable URLs per SPEC.
+  return PROJECTS.map((project) => ({ params: { project } }));
+}
+
+const { project } = Astro.params;
+
+// Oldest first — the chronological, linkable project narrative (contrast with
+// the index's newest-first interleave).
+const posts = (await getCollection("log"))
+  .filter(published)
+  .filter((p) => p.data.project === project)
+  .sort((a, b) => a.data.date.getTime() - b.data.date.getTime());
+---
+
+<Base
+  title={`${project} devlog — brac.dev`}
+  description={`Devlog posts for ${project}, in build order.`}
+  projectFeed={project}
+>
+  <main>
+    <p><a href="/log/">← all posts</a></p>
+    <h1>{project}</h1>
+    {
+      posts.length === 0 ? (
+        <p>No posts yet.</p>
+      ) : (
+        <ul>
+          {posts.map((post) => (
+            <li>
+              <a href={`/log/${post.id}/`}>{post.data.title}</a>
+              <time datetime={post.data.date.toISOString()}>
+                {post.data.date.toISOString().slice(0, 10)}
+              </time>
+              <p>{post.data.summary}</p>
+            </li>
+          ))}
+        </ul>
+      )
+    }
+  </main>
+</Base>
