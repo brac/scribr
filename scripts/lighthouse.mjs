@@ -15,7 +15,7 @@ import { createServer } from "node:http";
 import { createGzip } from "node:zlib";
 import { createReadStream, existsSync, mkdtempSync, rmSync, statSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join, extname } from "node:path";
+import { join, extname, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { dirname } from "node:path";
 import net from "node:net";
@@ -62,15 +62,23 @@ const MIME = {
   ".ico": "image/x-icon",
   ".json": "application/json; charset=utf-8",
 };
+// Reject any path that escapes dist/. `join` normalizes `..` segments, so a
+// prefix check against the resolved absolute path is sufficient.
+const inside = (full) => full === dist || full.startsWith(dist + sep);
 function resolveFile(urlPath) {
-  let p = decodeURIComponent(urlPath.split("?")[0]);
-  if (p.endsWith("/")) p += "index.html";
-  const full = join(dist, p);
-  if (existsSync(full) && statSync(full).isFile()) return full;
-  // fall back to directory index for extension-less paths
-  const idx = join(dist, p, "index.html");
-  if (existsSync(idx) && statSync(idx).isFile()) return idx;
-  return null;
+  try {
+    let p = decodeURIComponent(urlPath.split("?")[0]);
+    if (p.endsWith("/")) p += "index.html";
+    const full = join(dist, p);
+    if (inside(full) && existsSync(full) && statSync(full).isFile()) return full;
+    // fall back to directory index for extension-less paths
+    const idx = join(dist, p, "index.html");
+    if (inside(idx) && existsSync(idx) && statSync(idx).isFile()) return idx;
+    return null;
+  } catch {
+    // Malformed percent-encoding (URIError) etc. → treat as not found.
+    return null;
+  }
 }
 // Compressible text types get gzip when the client accepts it. Production
 // (Cloudflare Pages) always serves compressed; without this the gate's Lantern
@@ -123,16 +131,24 @@ async function waitForCDP(port, timeoutMs = 15000) {
 
 const median = (xs) => {
   const s = [...xs].sort((a, b) => a - b);
-  return s[Math.floor(s.length / 2)];
+  const mid = s.length >> 1;
+  return s.length % 2 ? s[mid] : (s[mid - 1] + s[mid]) / 2;
 };
 
 const serverPort = await freePort();
-await new Promise((r) => server.listen(serverPort, r));
+await new Promise((r) => server.listen(serverPort, "127.0.0.1", r));
 
 const debugPort = await freePort();
+// Verify the browser binary exists BEFORE creating the temp profile, so a
+// missing install exits cleanly without leaking a dir.
+const chromePath = chromium.executablePath();
+if (!existsSync(chromePath)) {
+  console.error("Playwright Chromium not found — run: npx playwright install chromium");
+  process.exit(1);
+}
 const userDataDir = mkdtempSync(join(tmpdir(), "scribr-lh-"));
 const chrome = spawn(
-  chromium.executablePath(),
+  chromePath,
   [
     "--headless=new",
     "--no-sandbox",
@@ -144,6 +160,13 @@ const chrome = spawn(
   ],
   { stdio: "ignore" }
 );
+// Belt-and-suspenders for spawn-time failures (e.g. binary vanished after the
+// existsSync check, or is not executable).
+chrome.on("error", (err) => {
+  console.error("Playwright Chromium not found — run: npx playwright install chromium");
+  console.error(String(err));
+  process.exit(1);
+});
 
 let failures = 0;
 try {

@@ -1,5 +1,11 @@
 # Adversarial code review — 2026-07-13
 
+> **Remediation status (same day):** all 30 findings addressed across four reviewed,
+> gated milestones — `phase-6` (sync hardening: #1,4,5,14–17,29), `phase-7` (test-gate
+> integrity: #2,3,9–13,26,27,30; #28 accepted-risk, documented in the test), `phase-8`
+> (site source: #7,8,21–25), `phase-9` (lighthouse gate: #6,18–20). Plans in
+> `plans/phase-{6..9}.md`; every gate re-run independently at review time.
+
 Full-repo adversarial review of scribr (site source, sync pipeline, scripts, tests, e2e, config).
 Method: three parallel review passes (scripts/sync, site source, tests/config), each finding
 independently verified against the actual code — several against the installed `node_modules`
