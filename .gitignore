@@ -7,7 +7,7 @@ playwright-report/
 *.log
 .env
 .env.*
+*.bak
 
 .vercel
-.env*
 .idea/

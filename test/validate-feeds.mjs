@@ -3,13 +3,50 @@
 // Reuses the dist/ produced by phase-1-draft-exclusion.mjs — does NOT rebuild.
 
 import FeedParser from "feedparser";
-import { createReadStream, existsSync, readFileSync } from "node:fs";
+import { createReadStream, existsSync, readFileSync, readdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const root = join(__dirname, "..");
 const dist = join(root, "dist");
+
+// Fixture gate — the draft-fixture-absent check below is a negative that stays
+// green once the fixture is gone, so refuse to run without it (finding #2).
+const fixture = join(root, "src", "content", "log", "field-notes-draft-fixture.md");
+if (!existsSync(fixture)) {
+  console.error("FAIL  draft fixture src/content/log/field-notes-draft-fixture.md exists");
+  console.error(
+    "\nThe draft fixture is this gate's proof of draft exclusion. Restore it before\n" +
+      "running feed validation — do not delete or rename it."
+  );
+  process.exit(1);
+}
+const fixtureFm = readFileSync(fixture, "utf8").match(/^---\r?\n([\s\S]*?)\r?\n---/);
+if (!fixtureFm || !/^draft:\s*true\s*$/m.test(fixtureFm[1])) {
+  console.error("FAIL  draft fixture frontmatter contains draft: true");
+  console.error(
+    "\nThe draft fixture must stay draft: true — do not publish or alter it."
+  );
+  process.exit(1);
+}
+
+// Published counts derived from source frontmatter (mirrors phase-3-meta.mjs) so
+// an empty or under-populated feed is a *checked* failure rather than a silent
+// pass over a vacuous channel (finding #9). A post is published iff draft: false;
+// group by its project: value (which may be quoted or bare).
+const contentDir = join(root, "src", "content", "log");
+const publishedByProject = {};
+let totalPublished = 0;
+for (const name of readdirSync(contentDir)) {
+  if (!/\.(md|mdx)$/.test(name)) continue;
+  const src = readFileSync(join(contentDir, name), "utf8");
+  const fm = src.match(/^---\r?\n([\s\S]*?)\r?\n---/);
+  if (!fm || !/^\s*draft:\s*false\s*$/m.test(fm[1])) continue;
+  const pm = fm[1].match(/^\s*project:\s*"?([^"\r\n]+?)"?\s*$/m);
+  if (pm) publishedByProject[pm[1]] = (publishedByProject[pm[1]] || 0) + 1;
+  totalPublished++;
+}
 
 // Read PROJECTS from the single source of truth by regex (this is a .mjs script
 // and projects.ts is TS; regex avoids a transpile step). Kept honest by the
@@ -44,7 +81,7 @@ function parseFeed(path) {
   });
 }
 
-async function checkFeed(label, path, { requireSeed = false } = {}) {
+async function checkFeed(label, path, { requireSeed = false, expectedCount } = {}) {
   if (!existsSync(path)) {
     report(`${label}: file exists`, false);
     return;
@@ -61,6 +98,13 @@ async function checkFeed(label, path, { requireSeed = false } = {}) {
   const { meta, items } = parsed;
   report(`${label}: channel title present`, !!(meta && meta.title));
   report(`${label}: channel description present`, !!(meta && meta.description));
+
+  if (expectedCount !== undefined) {
+    report(
+      `${label}: item count matches frontmatter (${expectedCount})`,
+      items.length === expectedCount
+    );
+  }
 
   let itemsOk = true;
   for (const item of items) {
@@ -92,12 +136,16 @@ async function checkFeed(label, path, { requireSeed = false } = {}) {
   }
 }
 
-await checkFeed("global rss.xml", join(dist, "rss.xml"), { requireSeed: true });
+await checkFeed("global rss.xml", join(dist, "rss.xml"), {
+  requireSeed: true,
+  expectedCount: totalPublished,
+});
 for (const project of PROJECTS) {
-  await checkFeed(
-    `${project} rss.xml`,
-    join(dist, "log", project, "rss.xml")
-  );
+  await checkFeed(`${project} rss.xml`, join(dist, "log", project, "rss.xml"), {
+    // particlr carries the seed post, so require it here too (finding #9).
+    requireSeed: project === "particlr",
+    expectedCount: publishedByProject[project] || 0,
+  });
 }
 
 if (failures > 0) {

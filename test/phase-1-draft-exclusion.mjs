@@ -17,7 +17,35 @@ function report(name, ok) {
   if (!ok) failures++;
 }
 
-// 1. Build.
+// 1. Fixture gate — this whole suite is a set of negatives ("draft-fixture
+// absent from dist"), so it proves nothing if the fixture disappears. Assert the
+// draft fixture source exists AND is still draft: true BEFORE spending a build.
+const fixture = join(root, "src", "content", "log", "field-notes-draft-fixture.md");
+if (!existsSync(fixture)) {
+  console.error(
+    "FAIL  draft fixture src/content/log/field-notes-draft-fixture.md exists"
+  );
+  console.error(
+    "\nThe draft fixture is this gate's only proof — every assertion below is a\n" +
+      "negative that stays green once it is deleted or renamed. Restore it before\n" +
+      "running the phase-1 gate."
+  );
+  process.exit(1);
+}
+const fixtureFm = readFileSync(fixture, "utf8").match(/^---\r?\n([\s\S]*?)\r?\n---/);
+if (!fixtureFm || !/^draft:\s*true\s*$/m.test(fixtureFm[1])) {
+  console.error(
+    "FAIL  draft fixture frontmatter contains draft: true"
+  );
+  console.error(
+    "\nThe draft fixture must stay draft: true — it is the post this gate proves\n" +
+      "gets excluded from every output surface. Do not publish or alter it."
+  );
+  process.exit(1);
+}
+report("draft fixture present and draft: true", true);
+
+// 2. Build.
 const build = spawnSync("npm", ["run", "build"], {
   cwd: root,
   shell: true,
@@ -29,13 +57,13 @@ if (build.status !== 0) {
   process.exit(1);
 }
 
-// 2. Draft URL directory must not exist.
+// 3. Draft URL directory must not exist.
 report(
   "dist/log/field-notes-draft-fixture/ does not exist",
   !existsSync(join(dist, "log", "field-notes-draft-fixture"))
 );
 
-// 3. No file under dist/ may contain the string "draft-fixture".
+// 4. No file under dist/ may contain the string "draft-fixture".
 function walk(dir) {
   const out = [];
   for (const name of readdirSync(dir)) {
@@ -56,7 +84,7 @@ if (offenders.length > 0) {
   for (const f of offenders) console.error(`  leaked in: ${f}`);
 }
 
-// 4. Seed post must be present — guards against a filter that excludes all.
+// 5. Seed post must be present — guards against a filter that excludes all.
 report(
   "seed post dist/log/particlr-spatial-hash/index.html present",
   existsSync(join(dist, "log", "particlr-spatial-hash", "index.html"))

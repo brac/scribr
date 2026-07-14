@@ -27,18 +27,20 @@ test("chips filter in place without navigation", async ({ page }) => {
   // Click the particlr chip.
   await page.getByRole("button", { name: "particlr", exact: true }).click();
 
-  // URL must not change — client-side filtering only.
-  expect(page.url()).toBe(urlBefore);
-
   // Only particlr posts remain — same count as the pre-click meta-line census,
   // and every remaining item is one of the particlr-meta items.
   await expect(items).toHaveCount(particlrCount);
   await expect(particlrItems).toHaveCount(particlrCount);
 
+  // URL must not change — client-side filtering only. Checked AFTER the
+  // auto-waiting count assertions above, which settle the page so a would-be
+  // navigation would already have committed (finding #27).
+  expect(page.url()).toBe(urlBefore);
+
   // Reset via "all".
   await page.getByRole("button", { name: "all", exact: true }).click();
-  expect(page.url()).toBe(urlBefore);
   await expect(items).toHaveCount(totalBefore);
+  expect(page.url()).toBe(urlBefore);
 });
 
 test("post list works with JavaScript disabled", async ({ browser }) => {

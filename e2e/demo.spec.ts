@@ -38,6 +38,11 @@ test.describe("particlr demo island", () => {
     const hits = trackPixiRequests(page);
     await page.goto(DEMO_POST, { waitUntil: "load" });
 
+    // Settle before the negative assertions so an eager-load regression (e.g. a
+    // requestIdleCallback-scheduled import) has a chance to fire and be caught —
+    // same settle the sibling test at lines 24–27 uses (finding #26).
+    await page.waitForTimeout(500);
+
     // At the top of the post the figure is below the fold — nothing loaded yet.
     expect(hits, `pixi loaded before scroll: ${hits.join(", ")}`).toHaveLength(0);
     await expect(page.locator("figure.demo canvas")).toHaveCount(0);
@@ -82,6 +87,8 @@ test.describe("particlr demo island", () => {
 
     console.log(`[demo] sustained fps over 30s: ${fps.toFixed(1)}`);
     expect(errors, `console errors: ${errors.join(" | ")}`).toHaveLength(0);
+    // Can flake on contended shared runners (host CPU steal drops the rAF
+    // cadence); it fails in the safe direction — a false red, never a false green.
     expect(fps, `sustained fps was ${fps.toFixed(1)}`).toBeGreaterThanOrEqual(50);
   });
 

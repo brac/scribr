@@ -184,10 +184,6 @@ report(
   missing.length === 0 && extra.length === 0,
   `missing=[${missing}] extra=[${extra}]`
 );
-report(
-  "no draft OG image leaked",
-  ![...actualOg].some((n) => n.includes("draft") || n.includes("correctness-seams"))
-);
 
 if (failures > 0) {
   console.error(`\n${failures} meta-audit assertion(s) failed.`);

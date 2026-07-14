@@ -25,6 +25,24 @@ function build() {
 const pristine = readFileSync(seed, "utf8");
 copyFileSync(seed, backup);
 
+// The gate mutates the real tracked seed in place; a Ctrl+C during any of the
+// multi-second child builds would skip the finally and strand the corruption in
+// git. Restore on the signals too, then exit 130 (finding #13).
+function restore() {
+  try {
+    writeFileSync(seed, pristine);
+  } catch {}
+  try {
+    rmSync(backup);
+  } catch {}
+}
+for (const sig of ["SIGINT", "SIGTERM"]) {
+  process.on(sig, () => {
+    restore();
+    process.exit(130);
+  });
+}
+
 let failures = 0;
 
 function report(name, ok) {
