@@ -39,6 +39,19 @@ export default function ParticlrDemo({ preset }: Props) {
 
     let cancelled = false;
     let cleanup: (() => void) | null = null;
+    // Progressively reassigned as resources come alive; runCleanup is safe to
+    // call from any exit path and at most once (nulling the slot makes it
+    // idempotent — it replaces the old `destroyed` flag).
+    const runCleanup = () => {
+      const c = cleanup;
+      cleanup = null;
+      ctl.current = null;
+      try {
+        c?.();
+      } catch {
+        /* teardown must never throw into Preact */
+      }
+    };
 
     (async () => {
       // Dynamic imports keep pixi/runtime out of SSR and out of every page's
@@ -66,8 +79,12 @@ export default function ParticlrDemo({ preset }: Props) {
         backgroundAlpha: 0,
         antialias: true,
       });
-      if (cancelled) {
+      // Application is live from here — every later exit must destroy it.
+      cleanup = () => {
         app.destroy(true, { children: true });
+      };
+      if (cancelled) {
+        runCleanup();
         return;
       }
 
@@ -78,10 +95,13 @@ export default function ParticlrDemo({ preset }: Props) {
 
       const fx = new Effect(parsed.doc, { seed: 1337 });
       const view = new PixiParticleRenderer(fx);
-      await view.ready; // embedded textures decoded
-      if (cancelled) {
+      cleanup = () => {
         view.destroy();
         app.destroy(true, { children: true });
+      };
+      await view.ready; // embedded textures decoded
+      if (cancelled) {
+        runCleanup();
         return;
       }
       app.stage.addChild(view.container);
@@ -106,22 +126,22 @@ export default function ParticlrDemo({ preset }: Props) {
       const ro = new ResizeObserver(() => position());
       ro.observe(stage);
 
-      let destroyed = false;
-      const destroy = () => {
-        if (destroyed) return; // guard double-cleanup (client:visible + nav)
-        destroyed = true;
+      cleanup = () => {
         ro.disconnect();
         app.ticker.remove(tick);
         view.destroy();
+        // destroy(true, …) detaches the canvas itself; NEVER read app.canvas
+        // after this line — pixi v8 nulls the renderer on destroy.
         app.destroy(true, { children: true });
-        if (app.canvas && app.canvas.parentNode) {
-          app.canvas.parentNode.removeChild(app.canvas);
-        }
       };
-      cleanup = destroy;
 
       ctl.current = {
         start: () => {
+          // Poster mode stops the page-global tickers (zero-rAF gate); pressing
+          // play restores them so pointer polling and any shared-ticker
+          // consumers resume alongside our render loop.
+          Ticker.system.start();
+          Ticker.shared.start();
           app.ticker.start();
           setPlaying(true);
         },
@@ -158,6 +178,7 @@ export default function ParticlrDemo({ preset }: Props) {
       }
       setReady(true);
     })().catch((err) => {
+      runCleanup();
       if (!cancelled) {
         console.error("[ParticlrDemo] init failed", err);
         setFailed(true);
@@ -166,8 +187,7 @@ export default function ParticlrDemo({ preset }: Props) {
 
     return () => {
       cancelled = true;
-      if (cleanup) cleanup();
-      ctl.current = null;
+      runCleanup();
     };
   }, [presetText]);
 
@@ -188,7 +208,9 @@ export default function ParticlrDemo({ preset }: Props) {
         )}
       </div>
       <figcaption class="demo-caption">
-        <span class="demo-label">demo ▸ {preset}</span>
+        <span class="demo-label" role="status">
+          {failed ? `demo ▸ ${preset} — failed to load` : `demo ▸ ${preset}`}
+        </span>
         <button
           type="button"
           class="demo-toggle"

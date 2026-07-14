@@ -8,7 +8,7 @@ export default defineConfig({
   site: "https://brac.dev",
   // Canonical URLs are https://brac.dev/log/{slug}/ — trailing slashes
   // everywhere. Docs-recommended pairing with the default directory build
-  // format and least friction on Cloudflare Pages. Note: with "always",
+  // format and least friction on Vercel. Note: with "always",
   // dev/preview 404 non-slashed URLs, so all internal links carry the slash.
   trailingSlash: "always",
   // A post id colliding with a project name must fail the build, not silently

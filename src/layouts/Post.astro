@@ -34,10 +34,16 @@ if (phase !== undefined) {
 }
 cells.push({ label: "DATE", value: displayDate });
 if (repo_ref) {
+  // Repo names mirror project names per scribr.config.json, so the GitHub tree
+  // link is built from `project`. field-notes has no repo, so its REF (if any)
+  // renders as a plain value — TitleBlock's Cell already supports href-less
+  // cells (DATE/PHASE).
   cells.push({
     label: "REF",
     value: repo_ref,
-    href: `https://github.com/brac/${project}/tree/${repo_ref}`,
+    ...(isFieldNotes
+      ? {}
+      : { href: `https://github.com/brac/${project}/tree/${repo_ref}` }),
   });
 }
 ---

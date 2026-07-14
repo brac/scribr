@@ -24,6 +24,11 @@ const pages: Record<string, Card> = {
   },
 };
 for (const post of posts) {
+  if (post.id in pages) {
+    throw new Error(
+      `OG card key collision: post id "${post.id}" would overwrite an existing card`
+    );
+  }
   pages[post.id] = {
     title: post.data.title,
     description: `${post.data.summary}\n\n${post.data.project} · brac.dev/log`,

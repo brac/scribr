@@ -16,7 +16,11 @@ const benchmark = z.object({
 });
 
 const log = defineCollection({
-  loader: glob({ pattern: "**/*.{md,mdx}", base: "./src/content/log" }),
+  // Flat glob (no `**`): content is flat by contract — the sync script writes
+  // every post directly into ./src/content/log. A nested file is intentionally
+  // not loaded rather than producing a slash-containing id that would escape
+  // the /log/{slug}/ URL contract.
+  loader: glob({ pattern: "*.{md,mdx}", base: "./src/content/log" }),
   schema: z
     .object({
       title: z.string().min(8).max(90),
