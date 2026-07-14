@@ -24,7 +24,7 @@ The invariant that matters: **scribr's copy is the editable one.** Once a draft 
 }
 ```
 
-- `project` must match a value in the content schema's `project` enum. The script validates this against `src/content/config.ts`'s enum list at startup (cheap regex extraction) and hard-fails on mismatch — same typo-protection philosophy as the schema itself.
+- `project` must match a value in the content schema's `project` enum. The script validates this against `src/lib/projects.ts`'s enum list at startup (cheap regex extraction) and hard-fails on mismatch — same typo-protection philosophy as the schema itself.
 - Adding a project to scribr = one enum entry + one `sources` entry.
 
 ## 3. Algorithm
@@ -39,7 +39,7 @@ for each source in config.sources:
     else:
       parse frontmatter (yaml)
       validate: required fields present, project field == source.project,
-                draft == true, date parses
+                draft == true or omitted (schema default), date parses
       on validation failure: skip file, log error, mark run "dirty"
       write file verbatim to target
       log "synced: {target}"
@@ -72,10 +72,11 @@ scribr sync — 2026-07-13
 
 | Failure | Behavior |
 |---------|----------|
-| Repo unreachable | Log, continue with remaining sources, exit 1 |
+| Repo unreachable | Log, continue with remaining sources, count in `failed`, exit 1 |
 | Frontmatter invalid | Skip file, log field-level error + source repo, exit 1 |
 | `project` field ≠ source project | Skip file (worker copy-pasted another repo's template), exit 1 |
 | Duplicate slug across projects | Impossible by construction — filenames are project-prefixed |
+| Duplicate stem within a source | Two devlog files collapse to one `{project}-{slug}` after phase-prefix stripping (e.g. `phase-3-retro.md` + `phase-7-retro.md`). All colliding files fail (each names its partners); none sync. Human resolves upstream. exit 1 |
 | Target exists | Skip silently-ish (listed in summary as `exists`) — this is the normal steady state, not an error |
 
 ## 6. v2 candidates (explicitly out of scope now)

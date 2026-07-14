@@ -77,7 +77,10 @@ function makeRepo(files) {
       throw new Error(`git ${args.join(" ")} failed: ${r.stderr || r.stdout}`);
     }
   };
-  spawnSync("git", ["init", "-b", "main", repo], { encoding: "utf8" });
+  const init = spawnSync("git", ["init", "-b", "main", repo], { encoding: "utf8" });
+  if (init.status !== 0) {
+    throw new Error(`git init -b main failed: ${init.stderr || init.stdout}`);
+  }
   git("config", "user.email", "fixture@scribr.test");
   git("config", "user.name", "scribr fixtures");
   git("config", "core.autocrlf", "false");
@@ -227,6 +230,126 @@ try {
     report(
       "unreachable repo: the reachable source still synced",
       existsSync(join(cd, "particlr-good.md")) && /1 synced/.test(out)
+    );
+  }
+
+  // 8. Duplicate stem within one source → all colliding files fail, none sync.
+  {
+    const cd = freshContentDir();
+    const repo = makeRepo({
+      "phase-3-retro.md": validPost({ slug: "retro" }),
+      "phase-7-retro.md": validPost({ slug: "retro" }),
+    });
+    const cfg = writeConfig(cd, [{ project: "particlr", repo, branch: "main" }]);
+    const { status, out } = runSync(cfg);
+    report("duplicate stem: exit 1", status === 1, `exit ${status}\n${out}`);
+    report("duplicate stem: reported as duplicate", /duplicate/.test(out));
+    report("duplicate stem: target not created", !existsSync(join(cd, "particlr-retro.md")));
+  }
+
+  // 9. Nonexistent contentDir → fail fast at startup, before any clone.
+  {
+    const missingCd = join(tmpdir(), "scribr-no-content-" + Date.now());
+    const cfg = writeConfig(missingCd, [{ project: "particlr", repo: goodRepo, branch: "main" }]);
+    const { status, out } = runSync(cfg);
+    report("missing contentDir: exit 1", status === 1, `exit ${status}\n${out}`);
+    report("missing contentDir: names contentDir, no clone", /contentDir/.test(out) && !/clone failed/.test(out));
+  }
+
+  // 10. Non-integer phase → deep validation fails naming 'phase'.
+  {
+    const cd = freshContentDir();
+    const badPhase = validPost({ slug: "phasey" }).replace("phase: 4", "phase: two");
+    const repo = makeRepo({ "phase-4-phasey.md": badPhase });
+    const cfg = writeConfig(cd, [{ project: "particlr", repo, branch: "main" }]);
+    const { status, out } = runSync(cfg);
+    report("non-integer phase: exit 1", status === 1, `exit ${status}\n${out}`);
+    report("non-integer phase: FAILED line names 'phase'", /FAILED:/.test(out) && /phase/.test(out));
+    report("non-integer phase: target not created", !existsSync(join(cd, "particlr-phasey.md")));
+  }
+
+  // 11. Omitted draft → valid (schema defaults draft to true), file syncs.
+  {
+    const cd = freshContentDir();
+    const noDraft = validPost({ slug: "nodraft" })
+      .split("\n")
+      .filter((l) => l !== "draft: true")
+      .join("\n");
+    const repo = makeRepo({ "phase-4-nodraft.md": noDraft });
+    const cfg = writeConfig(cd, [{ project: "particlr", repo, branch: "main" }]);
+    const { status, out } = runSync(cfg);
+    report("omitted draft: exit 0", status === 0, `exit ${status}\n${out}`);
+    report(
+      "omitted draft: file synced",
+      existsSync(join(cd, "particlr-nodraft.md")) && /1 synced/.test(out)
+    );
+  }
+
+  // 12. Explicit draft: false → validation fails naming 'draft'.
+  {
+    const cd = freshContentDir();
+    const draftFalse = validPost({ slug: "published" }).replace("draft: true", "draft: false");
+    const repo = makeRepo({ "phase-4-published.md": draftFalse });
+    const cfg = writeConfig(cd, [{ project: "particlr", repo, branch: "main" }]);
+    const { status, out } = runSync(cfg);
+    report("explicit draft false: exit 1", status === 1, `exit ${status}\n${out}`);
+    report("explicit draft false: FAILED line names 'draft'", /FAILED:/.test(out) && /draft/.test(out));
+    report("explicit draft false: target not created", !existsSync(join(cd, "particlr-published.md")));
+  }
+
+  // 13. Malicious repo values → rejected at config validation, before any git.
+  for (const evil of ["--upload-pack=calc", "ext::sh -c whatever"]) {
+    const cd = freshContentDir();
+    const cfg = writeConfig(cd, [{ project: "particlr", repo: evil, branch: "main" }]);
+    const { status, out } = runSync(cfg);
+    report(`malicious repo (${evil}): exit 1`, status === 1, `exit ${status}\n${out}`);
+    report(
+      `malicious repo (${evil}): rejected at config stage, no clone`,
+      /not an allowed remote or absolute path/.test(out) && !/clone failed/.test(out)
+    );
+  }
+
+  // 14. decisions entry missing 'why' → deep validation fails naming 'decisions'.
+  {
+    const cd = freshContentDir();
+    const badDecisions = validPost({ slug: "decisions-post" }).replace(
+      "decisions: []",
+      'decisions: [{ what: "x" }]'
+    );
+    const repo = makeRepo({ "phase-4-decisions-post.md": badDecisions });
+    const cfg = writeConfig(cd, [{ project: "particlr", repo, branch: "main" }]);
+    const { status, out } = runSync(cfg);
+    report("bad decisions: exit 1", status === 1, `exit ${status}\n${out}`);
+    report("bad decisions: FAILED line names 'decisions'", /FAILED:/.test(out) && /decisions/.test(out));
+    report("bad decisions: target not created", !existsSync(join(cd, "particlr-decisions-post.md")));
+  }
+
+  // 15. field-notes post with a present-but-invalid phase → the type check
+  // applies to ANY post carrying the field, not just project posts.
+  {
+    const cd = freshContentDir();
+    const fieldNotesBadPhase = [
+      "---",
+      'title: "Notes on hashing things quickly"',
+      "date: 2026-07-12",
+      "project: field-notes",
+      "phase: two",
+      "tags: [notes]",
+      "draft: true",
+      'summary: "A concrete one-line summary that clears the twenty character floor easily."',
+      "---",
+      "",
+      "Body text for the fixture post.",
+      "",
+    ].join("\n");
+    const repo = makeRepo({ "hashing-notes.md": fieldNotesBadPhase });
+    const cfg = writeConfig(cd, [{ project: "field-notes", repo, branch: "main" }]);
+    const { status, out } = runSync(cfg);
+    report("field-notes bad phase: exit 1", status === 1, `exit ${status}\n${out}`);
+    report("field-notes bad phase: FAILED line names 'phase'", /FAILED:/.test(out) && /phase/.test(out));
+    report(
+      "field-notes bad phase: target not created",
+      !existsSync(join(cd, "field-notes-hashing-notes.md"))
     );
   }
 } finally {

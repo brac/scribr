@@ -13,6 +13,7 @@ import {
   readdirSync,
   readFileSync,
   rmSync,
+  statSync,
   writeFileSync,
 } from "node:fs";
 import { fileURLToPath } from "node:url";
@@ -70,6 +71,20 @@ for (const s of config.sources) {
   }
 }
 
+// Repo allowlist — a config value reaches `git clone` argv, so reject anything
+// that could be parsed as an option (leading "-") or a command-executing
+// transport (git's "ext::"/"fd::" URLs use "::"). Accept only recognised remote
+// schemes or an absolute local path (the test fixtures clone from those).
+const REPO_SCHEME_RE = /^(https:\/\/|ssh:\/\/|git@)/;
+for (const s of config.sources) {
+  if (s.repo.startsWith("-") || s.repo.includes("::") || !(REPO_SCHEME_RE.test(s.repo) || isAbsolute(s.repo))) {
+    fail(
+      `source repo is not an allowed remote or absolute path: ${JSON.stringify(s.repo)} ` +
+        `(expected https://, ssh://, git@… or an absolute local path; no leading "-", no "::")`
+    );
+  }
+}
+
 // Regex-extract the project enum from the single source of truth, exactly the
 // way test/validate-feeds.mjs does (this is a .mjs, projects.ts is TS; regex
 // avoids a transpile step). Typo protection identical to the schema's.
@@ -90,6 +105,13 @@ for (const s of config.sources) {
 const contentDir = isAbsolute(config.contentDir)
   ? config.contentDir
   : join(root, config.contentDir);
+
+// A wrong contentDir would make every existence check false and then throw on
+// the first write (or, if it exists but points elsewhere, resurrect already-
+// edited drafts). Fail fast, before any clone.
+if (!existsSync(contentDir) || !statSync(contentDir).isDirectory()) {
+  fail(`contentDir does not exist or is not a directory: ${contentDir}`);
+}
 
 // ---- Frontmatter validation (mirrors the Zod schema) -------------------
 
@@ -123,9 +145,10 @@ function validateFrontmatter(fm, expectedProject) {
     };
   }
 
-  // draft must be true (publishing is a human act; sync only pulls drafts)
-  if (fm.draft !== true) {
-    return { field: "draft", reason: `must be true, got ${JSON.stringify(fm.draft)}` };
+  // draft: valid when true OR omitted — the schema defaults it to true. Any
+  // other value (explicit false, strings) fails; publishing is a human act.
+  if (fm.draft !== undefined && fm.draft !== true) {
+    return { field: "draft", reason: `must be true or omitted, got ${JSON.stringify(fm.draft)}` };
   }
 
   // title 8–90
@@ -154,6 +177,64 @@ function validateFrontmatter(fm, expectedProject) {
   for (const t of fm.tags) {
     if (typeof t !== "string" || !SLUG_RE.test(t)) {
       return { field: "tags", reason: `"${t}" must match /^[a-z0-9-]+$/` };
+    }
+  }
+
+  // phase: an integer ≥ 0 whenever present, on ANY post (0 is scribr's
+  // Phase 0). Required-for-project-posts was already enforced above; the
+  // schema's z.number().int().nonnegative() applies to field-notes too.
+  if (fm.phase !== undefined && !(Number.isInteger(fm.phase) && fm.phase >= 0)) {
+    return { field: "phase", reason: `must be an integer ≥ 0 (got ${JSON.stringify(fm.phase)})` };
+  }
+
+  // repo_ref: a string whenever present (z.string().optional()); additionally
+  // non-empty for project posts (schema refine). An empty string on a
+  // field-notes post is Zod-valid, so it stays valid here.
+  if (fm.repo_ref !== undefined && typeof fm.repo_ref !== "string") {
+    return { field: "repo_ref", reason: `must be a string (got ${JSON.stringify(fm.repo_ref)})` };
+  }
+  if (!isFieldNotes && fm.repo_ref.length === 0) {
+    return { field: "repo_ref", reason: "must be a non-empty string for project posts" };
+  }
+
+  // decisions (if present): array of { what, why, alternatives? }. Absent is
+  // fine — the schema defaults it to []. Mirrors the `decision` object shape.
+  if (fm.decisions !== undefined) {
+    if (!Array.isArray(fm.decisions)) {
+      return { field: "decisions", reason: `must be an array (got ${typeof fm.decisions})` };
+    }
+    for (const dec of fm.decisions) {
+      if (dec === null || typeof dec !== "object" || Array.isArray(dec)) {
+        return { field: "decisions", reason: "each entry must be an object" };
+      }
+      if (typeof dec.what !== "string" || dec.what.length === 0) {
+        return { field: "decisions", reason: "each entry needs a non-empty 'what'" };
+      }
+      if (typeof dec.why !== "string" || dec.why.length === 0) {
+        return { field: "decisions", reason: "each entry needs a non-empty 'why'" };
+      }
+      if (dec.alternatives !== undefined &&
+          (!Array.isArray(dec.alternatives) || dec.alternatives.some((a) => typeof a !== "string"))) {
+        return { field: "decisions", reason: "'alternatives' must be an array of strings" };
+      }
+    }
+  }
+
+  // benchmarks (if present): array of { metric, value, target }, all non-empty
+  // strings. Absent is fine — the schema defaults it to [].
+  if (fm.benchmarks !== undefined) {
+    if (!Array.isArray(fm.benchmarks)) {
+      return { field: "benchmarks", reason: `must be an array (got ${typeof fm.benchmarks})` };
+    }
+    for (const b of fm.benchmarks) {
+      if (b === null || typeof b !== "object" || Array.isArray(b)) {
+        return { field: "benchmarks", reason: "each entry must be an object" };
+      }
+      for (const k of ["metric", "value", "target"]) {
+        if (typeof b[k] !== "string" || b[k].length === 0) {
+          return { field: "benchmarks", reason: `each entry needs a non-empty '${k}'` };
+        }
+      }
     }
   }
 
@@ -186,6 +267,7 @@ function sparseCloneDevlog(repo, branch) {
       "--sparse",
       "--branch", branch,
       "--single-branch",
+      "--", // end of options — repo can never be read as a flag
       repo,
       tmp,
     ],
@@ -222,6 +304,7 @@ for (const source of config.sources) {
     const res = sparseCloneDevlog(repo, branch);
     tmp = res.tmp;
     if (res.error) {
+      failed++; // a clone/sparse-checkout failure is a failure, not just dirty
       dirty = true;
       const firstLine = res.error.split("\n")[0];
       console.log(`  ${pad(project)} ERROR: clone failed — ${firstLine}`);
@@ -235,40 +318,74 @@ for (const source of config.sources) {
       .filter((n) => n.endsWith(".md"))
       .sort();
 
+    // Pre-group by computed stem so a within-source collision (phase-3-retro.md
+    // + phase-7-retro.md → particlr-retro.md) is caught before anything writes.
+    const stemGroups = new Map();
+    for (const file of files) {
+      const slug = file.slice(0, -3).replace(/^phase-\d+-/, "");
+      const stem = `${project}-${slug}`;
+      if (!stemGroups.has(stem)) stemGroups.set(stem, []);
+      stemGroups.get(stem).push(file);
+    }
+
     for (const file of files) {
       const base = file.slice(0, -3); // strip ".md"
       const slug = base.replace(/^phase-\d+-/, "");
       const stem = `${project}-${slug}`;
+
+      // Duplicate-stem guard: when two devlog files collapse to the same target
+      // stem, none of them sync — each is failed, naming its collision partners,
+      // and a human resolves it upstream (#1). Runs before the existence check
+      // so a collision can never quietly write one file and drop the rest.
+      const group = stemGroups.get(stem);
+      if (group.length > 1) {
+        failed++;
+        dirty = true;
+        const others = group.filter((f) => f !== file).join(", ");
+        console.log(
+          `  ${pad(project)} FAILED: ${file} — duplicate target stem "${stem}" (also from: ${others})`
+        );
+        continue;
+      }
+
       const targetMd = join(contentDir, `${stem}.md`);
       const targetMdx = join(contentDir, `${stem}.mdx`);
 
-      // Existence check FIRST — an already-synced file is truth on the scribr
-      // side, even if it would now fail validation. Covers .md and .mdx.
-      if (existsSync(targetMd) || existsSync(targetMdx)) {
-        skipped++;
-        console.log(`  ${pad(project)} exists: ${stem}.md`);
-        continue;
-      }
+      try {
+        // Existence check FIRST — an already-synced file is truth on the scribr
+        // side, even if it would now fail validation. Covers .md and .mdx.
+        if (existsSync(targetMd) || existsSync(targetMdx)) {
+          skipped++;
+          console.log(`  ${pad(project)} exists: ${stem}.md`);
+          continue;
+        }
 
-      const raw = readFileSync(join(devlogDir, file)); // Buffer — verbatim bytes
-      const { fm, error } = readFrontmatter(raw.toString("utf8"));
-      if (error) {
+        const raw = readFileSync(join(devlogDir, file)); // Buffer — verbatim bytes
+        const { fm, error } = readFrontmatter(raw.toString("utf8"));
+        if (error) {
+          failed++;
+          dirty = true;
+          console.log(`  ${pad(project)} FAILED: ${file} — frontmatter: ${error}`);
+          continue;
+        }
+        const bad = validateFrontmatter(fm, project);
+        if (bad) {
+          failed++;
+          dirty = true;
+          console.log(`  ${pad(project)} FAILED: ${file} — ${bad.field}: ${bad.reason}`);
+          continue;
+        }
+
+        writeFileSync(targetMd, raw); // verbatim bytes, no rewriting
+        synced++;
+        console.log(`  ${pad(project)} synced: ${stem}.md`);
+      } catch (err) {
+        // Any read/validate/write throw is one file's failure, not the run's —
+        // log it, count it, keep going (SYNC-DESIGN §5 log-and-continue).
         failed++;
         dirty = true;
-        console.log(`  ${pad(project)} FAILED: ${file} — frontmatter: ${error}`);
-        continue;
+        console.log(`  ${pad(project)} FAILED: ${file} — ${err.message}`);
       }
-      const bad = validateFrontmatter(fm, project);
-      if (bad) {
-        failed++;
-        dirty = true;
-        console.log(`  ${pad(project)} FAILED: ${file} — ${bad.field}: ${bad.reason}`);
-        continue;
-      }
-
-      writeFileSync(targetMd, raw); // verbatim bytes, no rewriting
-      synced++;
-      console.log(`  ${pad(project)} synced: ${stem}.md`);
     }
   } finally {
     if (tmp) {
