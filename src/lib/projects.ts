@@ -11,6 +11,7 @@ export const PROJECTS = [
   "crawlers",
   "petriarch",
   "scribr",
+  "meshcheck",
   "field-notes",
 ] as const;
 

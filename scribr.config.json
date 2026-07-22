@@ -4,6 +4,7 @@
     { "project": "particlr", "repo": "https://github.com/brac/particlr.git", "branch": "main" },
     { "project": "swarmr",   "repo": "https://github.com/brac/swarmr.git",   "branch": "main" },
     { "project": "petriarch", "repo": "https://github.com/brac/petriarch.git", "branch": "main" },
-    { "project": "scribr",   "repo": "https://github.com/brac/scribr.git",   "branch": "main" }
+    { "project": "scribr",   "repo": "https://github.com/brac/scribr.git",   "branch": "main" },
+    { "project": "meshcheck", "repo": "https://github.com/brac/meshcheck.git", "branch": "main" }
   ]
 }
