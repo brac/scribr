@@ -6,6 +6,7 @@
     { "project": "petriarch", "repo": "https://github.com/brac/petriarch.git", "branch": "main" },
     { "project": "scribr",   "repo": "https://github.com/brac/scribr.git",   "branch": "main" },
     { "project": "meshcheck", "repo": "https://github.com/brac/meshcheck.git", "branch": "main" },
-    { "project": "townwick", "repo": "https://github.com/brac/townwick.git", "branch": "main" }
+    { "project": "townwick", "repo": "https://github.com/brac/townwick.git", "branch": "main" },
+    { "project": "vantage", "repo": "https://github.com/brac/vantage.git", "branch": "main" }
   ]
 }

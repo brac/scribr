@@ -13,6 +13,7 @@ export const PROJECTS = [
   "scribr",
   "meshcheck",
   "townwick",
+  "vantage",
   "field-notes",
 ] as const;
 
