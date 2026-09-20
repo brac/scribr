@@ -41,8 +41,8 @@ Cell size was the main argument. Adaptive sizing (cells scaled to the
 preset's max interaction radius) looked right on paper, but measuring it
 showed the rebuild cost eating the win: presets keep particle interaction
 radii within a narrow band, so a fixed 64px cell was never more than one
-lookup from optimal. A quadtree was rejected without prototyping —
-rebuild-per-tick favors flat structures, and the fixed-timestep loop makes
+lookup from optimal. A quadtree was rejected without prototyping.
+Rebuild-per-tick favors flat structures, and the fixed-timestep loop makes
 per-tick rebuild the simplest correctness story.
 
 Rebuild-vs-incremental went the same way. Incremental updates only pay off
@@ -52,7 +52,7 @@ every tick.
 ## What broke
 
 First implementation hashed on render position, not sim position, which
-worked until interpolation was on — then neighbors flickered at cell
+worked until interpolation was on. Then neighbors flickered at cell
 boundaries at high time scales. Cost an evening. The fix was hashing on the
 fixed-step sim position only, and it exposed that two behaviors were reading
 render position for logic, which is now lint-blocked.
@@ -64,7 +64,7 @@ particles, `ember-drift` preset, 10s capture, p95). Neighbor pass went from
 11.8ms all-pairs at 800 particles to 3.1ms hashed at 2,500. Rebuild is
 0.4ms, flat with respect to particle motion.
 
-*Live demo — the `ember-field` preset running on the current runtime build.*
+*Live demo: the `ember-field` preset running on the current runtime build.*
 
 <ParticlrDemo preset="ember-field" client:visible />
 

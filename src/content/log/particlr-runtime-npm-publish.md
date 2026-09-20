@@ -40,61 +40,62 @@ benchmarks:
 
 ## What shipped
 
-`@particlr/runtime` is on npm, MIT-licensed, across four releases: 0.3.0 on
-2026-07-10 (`7a3daa0`), then 0.4.0, 0.4.1, and 0.4.2 on 2026-07-12. The monorepo
-stays private — the editor is the commercial surface — so only
-`packages/runtime` is public, extracted by a history-preserving git subtree
-split into a separate mirror repo (github.com/brac/particlr-runtime). The
-package ships `dist/` only via `files: ["dist"]`, and builds standalone:
-`packages/runtime` carries a copy of `tsconfig.base.json`, so
-`npm install && npm run build` works in the mirror where `../../` does not
-exist. A test pins `RUNTIME_VERSION` to `package.json`'s version so the two
-can't drift. 0.4.0 carried schema 9 to 12 (TIERB, WIND_PARAMS, CURVES, and the
-correctness remediation) onto npm; 0.4.1 was README-only; 0.4.2 was a
-supply-chain fix.
+`@particlr/runtime` is on npm under MIT. Four releases: 0.3.0 on 2026-07-10
+(`7a3daa0`), then 0.4.0, 0.4.1 and 0.4.2 on 2026-07-12.
+
+The monorepo stays private because the editor is the thing I sell. Only
+`packages/runtime` is public, split out with `git subtree` so the mirror repo
+(github.com/brac/particlr-runtime) keeps its history. The tarball ships `dist/`
+only. The package builds on its own: it carries a copy of `tsconfig.base.json`
+so `npm install && npm run build` works in the mirror, where `../../` doesn't
+exist. A test pins `RUNTIME_VERSION` to the `package.json` version so the two
+can't drift.
+
+0.4.0 carried schema 9 through 12 (TIERB, WIND_PARAMS, CURVES, the correctness
+remediation) onto npm. 0.4.1 was README only. 0.4.2 was a supply-chain fix.
 
 ## Decisions
 
-Publishing only the runtime was the anchor: it is what users install and
-inspect, and a subtree split keeps the mirror's history rooted at the package
-instead of hand-copying files. The tarball ships compiled `dist`
-only — the full API reference lives in the shipped `.d.ts` and
-`particle.schema.json`, which let 0.4.1 cut the README from 507 lines to about
-55. Standalone buildability forced the in-package `tsconfig.base.json` copy,
-since the mirror cannot otherwise compile. And
-0.4.2 replaced the Pixi adapter's `fetch(dataUrl)` texture decode with
-`decodeBase64` to Blob to `createImageBitmap` plus a new validator gate, rather
-than suppressing the scanner's alert.
+Publish the runtime, nothing else. It's what people install and read, and a
+subtree split beats hand-copying files into a second repo.
+
+Ship compiled `dist` only. The API reference already lives in the `.d.ts` and
+`particle.schema.json`, which is what let 0.4.1 cut the README from 507 lines
+to about 55.
+
+For 0.4.2, fix the problem rather than suppress the scanner. The Pixi adapter's
+`fetch(dataUrl)` texture decode became `decodeBase64` to Blob to
+`createImageBitmap`, plus a new validator error.
 
 ## What broke
 
-0.4.2 existed because Socket flagged the package with a network-access
-capability, score 75, and the flag was accidentally real: the validator accepted
-any string for a `textures` value, so a crafted `.prt` pointing at a remote URL
-would genuinely have been fetched at decode time. The fix removes every `fetch`
-identifier from `dist` and adds error `E44` — `textures` values must be
-`data:image/<subtype>;base64,...`. The uncomfortable part: the scanner was
-right and I would have argued with it. "That fetch can only ever see data:
-URLs" is exactly the sentence every supply-chain victim said before the audit.
-Publishing itself is the other recurring
-wall: the machine's npm token returns `E401` (expired) and the account is
-2FA-protected, and the shell here can't complete npm's browser OTP flow, so each
-publish is human-in-the-loop (Ben ran login plus OTP for 0.4.0). The mirror's
-first push (2026-07-10) carried a branch-only `.gitignore` commit and needed a
-one-time force-with-lease; moving `.gitignore` into `packages/runtime`
-(`488a545`) made every later sync fast-forward.
+Socket flagged the package for network access, score 75. I would have argued
+it was a false positive. It wasn't. The validator accepted any string for a
+`textures` value, so a crafted `.prt` pointing at a remote URL would have been
+fetched at decode time. "That fetch only ever sees data: URLs" is the sentence
+everyone says right before the audit. The fix removes every `fetch` identifier
+from `dist` and adds `E44`: `textures` values must be
+`data:image/<subtype>;base64,...`.
+
+Publishing itself is a recurring wall. The machine's npm token returns `E401`
+(expired), the account is behind 2FA, and the agent's shell can't complete
+npm's browser OTP flow. So every publish is me running login plus OTP by hand.
+
+The mirror's first push on 2026-07-10 carried a branch-only `.gitignore` commit
+and needed a one-time force-with-lease. Moving `.gitignore` into
+`packages/runtime` (`488a545`) made every later sync a fast-forward.
 
 ## Numbers
 
-The runtime held its size budget throughout: 23.26 of 25 KB gz at 0.4.0 and
-0.4.1, 23.33 at 0.4.2. Each release gated on the full vitest suite — 1527 tests
-through 0.4.1, 1532 at 0.4.2 — plus `npm pack --dry-run` confirming LICENSE,
-README, and `dist` present with no `src`. Mirror syncs are recorded as
-fast-forward ranges, e.g. `9f71ec4..91e349f` for 0.4.2.
+Bundle stayed under the 25 KB gz budget: 23.26 KB at 0.4.0 and 0.4.1, 23.33 KB
+at 0.4.2. Each release gated on the full vitest suite (1527 tests through
+0.4.1, 1532 at 0.4.2) and on `npm pack --dry-run` showing LICENSE, README and
+`dist` with no `src`. Mirror syncs are recorded as fast-forward ranges,
+`9f71ec4..91e349f` for 0.4.2.
 
 ## Next
 
-The immediate follow-up is re-running the Socket scan against 0.4.2 to confirm
-the network-access alert clears. Longer term, the reason the CPU sim sits behind
-a versioned format at all is the v2 WebGPU compute path (`V2_DESIGN`), which
-should swap in under the same published package without breaking a `.prt`.
+Re-run the Socket scan against 0.4.2 and confirm the alert clears. Longer
+term, the whole reason the CPU sim sits behind a versioned format is the v2
+WebGPU compute path (`V2_DESIGN`), which should swap in under the same package
+without breaking a `.prt`.

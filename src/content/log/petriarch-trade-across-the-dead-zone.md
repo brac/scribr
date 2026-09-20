@@ -37,28 +37,68 @@ benchmarks:
 
 ## What shipped
 
-Petriarch's first authored social layer: two societies now trade complementary goods across a barren, foodless gap. Agents climb a long-range supply-scent toward the nutrient they lack, a provisioning gate lets only the well-fed attempt the crossing, and a carry/return state machine hauls cargo home so goods move both ways without the populations emigrating. Carriers then harden a visible caravan road across the dead zone, and a slow-decaying amity field cools the frontier into a pacified market. This was the first Tier A/GPU change since the WebGPU port — the scent and gate terms ship in `steer.wgsl`, re-verified on the 3090.
+Petriarch's first authored social layer. Two societies now trade complementary
+goods across a barren gap with no food in it.
+
+Agents climb a long-range supply-scent toward the nutrient they lack. A
+provisioning gate lets only the well-fed attempt the crossing. A carry/return
+state machine hauls cargo home, so goods move both ways without either
+population emigrating. Carriers wear a visible caravan road into the dead
+zone, and a slow-decaying amity field cools the frontier into a pacified
+market.
+
+This was the first Tier A/GPU change since the WebGPU port. The scent and gate
+terms ship in `steer.wgsl`, re-verified on the 3090.
 
 ## Decisions
 
-The keystone was long-range reach. A deposited demand field was the intuitive choice but failed (below), so we anchored a static, monotonic supply-scent cone to each nutrient's region and had deficit-weighted agents climb it. Weight 0.6 was the cap — at 1.0 region A empties (migration, not trade).
+Long-range reach was the hard part. The obvious design, a deposited demand
+field, failed (below), so the supply-scent is a static, monotonic cone
+anchored to each nutrient's region, and deficit-weighted agents climb it.
+Weight 0.6 is the cap. At 1.0 region A empties out, which is migration, not
+trade.
 
-Provisioning became a single energy-reserve gate on the scent pull rather than the three planned levers; the gate subsumed two of them and lures only agents with the reserve to survive.
+Provisioning is one energy-reserve gate on the scent pull instead of the three
+levers I'd planned. The gate subsumes two of them and only lures agents with
+enough reserve to survive the crossing.
 
-The round trip was non-negotiable: without a return leg the two societies blur into one, so cargo is carried, not consumed, and "home" reuses the existing claim-field gradient.
+The return leg is required. Without it the two societies blur into one. So
+cargo is carried, not consumed, and "home" reuses the existing claim-field
+gradient.
 
 ## What broke
 
-The deficit-broadcast demand field failed outright. With both regions eaten to scarcity, agents are hungry on both nutrients, so demand tracked population density and peaked inside each region — climbing it herded agents toward their own centre and gap traffic went down. A spatial probe proved it before the scent-cone rewrite. Diffusing the capacity field was tried first and also rejected — it decays the far signal to noise, never monotonic across the 20-cell gap. This failure was the most valuable thing in the phase. The intuitive design — broadcast demand and let agents answer it — is what a design doc approves and a simulation vetoes. You only find that out by running it.
+The deficit-broadcast demand field failed outright. With both regions eaten
+down to scarcity, agents are hungry for both nutrients, so demand tracked
+population density and peaked inside each region. Climbing it herded agents
+toward their own centre and gap traffic went down. A spatial probe proved it
+before the rewrite. Diffusing the capacity field was tried first and also
+rejected, since it decays the far signal to noise and is never monotonic
+across the 20-cell gap.
 
-On amity, cranking suppress to 0.5 and per-trade volume to 5 did almost nothing — peak amity capped near 4, under 1% of fights suppressed — because at fast decay each deposit faded before the next sparse frontier trade. Slow decay (0.998) was the unlock.
+This was the most useful failure of the phase. Broadcast demand and let agents
+answer it is the design a doc approves and a simulation vetoes. You only find
+out by running it.
 
-The provisioning gate's nonlinearity nudged the CPU-f64/GPU-f32 steer divergence up for a few borderline agents; a seed-sweep (0–3 of ~3900 agents) showed it non-systematic, so we recalibrated verify tolerances rather than chase a phantom logic bug.
+Amity barely moved at first. Suppress at 0.5 and per-trade volume at 5 capped
+peak amity near 4, with under 1% of fights suppressed, because at fast decay
+each deposit faded before the next sparse frontier trade. Slow decay (0.998)
+fixed it.
+
+The gate's nonlinearity nudged the CPU-f64/GPU-f32 steer divergence up for a
+few borderline agents. A seed sweep showed 0 to 3 of ~3900 agents,
+non-systematic, so I widened the verify tolerances instead of chasing a
+phantom logic bug.
 
 ## Numbers
 
-Amity numbers come from `amitycheck.ts` (16k x 4 seeds): the winning config pushed pacified cells 13 -> 245 and cut global fights/k 16% versus trade-only (26% versus a no-trade world) while TRADE selection edged 0.45 -> 0.49. The crossing numbers come from `crossing.ts` (3 seeds x 8k). A later conflict-recession study (seed 11, 20k ticks) confirmed the thesis globally: per-capita fights fell 70% (1.25 -> 0.38/k/agent) as commerce took over.
+Amity from `amitycheck.ts` (16k x 4 seeds): pacified cells 13 to 245, global
+fights/k down 16% versus trade-only and 26% versus no trade, TRADE selection
+0.45 to 0.49. Crossing numbers from `crossing.ts` (3 seeds x 8k). A later
+conflict-recession run (seed 11, 20k ticks) confirmed it globally: per-capita
+fights fell 70%, 1.25 to 0.38/k/agent, as commerce took over.
 
 ## Next
 
-Territory — the second social layer — where societies fight harder on home ground and hold coherent borders.
+Territory, the second social layer. Societies fight harder on home ground and
+hold coherent borders.

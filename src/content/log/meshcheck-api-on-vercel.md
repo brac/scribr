@@ -47,7 +47,7 @@ decisions:
 benchmarks:
   - metric: "wasm-vs-native report parity, full corpus"
     value: "27/27 byte-identical (fixed meta, zeroed timing), GEO-009 included"
-    target: "byte-identical — Phase 1 gate"
+    target: "byte-identical, the Phase 1 gate"
   - metric: "integration suite (incl. all error codes)"
     value: "125/125 passing; 16-code table pinned, 14 reachable end-to-end"
     target: "100% pass"
@@ -73,28 +73,40 @@ benchmarks:
 
 ## What shipped
 
-The meshcheck API is deployed on Vercel Functions and answers requests over `meshcheck-core` compiled to WASM. A single Hono app (assembled by `createApp(deps)`, everything non-deterministic injected) serves `POST /v1/validate` in three input modes — multipart upload, server-fetched URL, and previously-uploaded `blob_id` — plus `GET /v1/reports/:id`, `GET /v1/jobs/:id`, `GET /v1/account`, `POST /v1/uploads`, and the internal cron sweep. The report leaves Rust once as a string and is passed through verbatim to the response, the stored blob, and the job envelope; a byte-pin test holds `body === stored === a fresh wasm run`. The WASM build carries GEO-009 (parry3d) on, byte-identical to native across all 27 corpus assets.
+The meshcheck API is live on Vercel Functions, running `meshcheck-core` compiled to WASM. One Hono app, built by `createApp(deps)` with everything non-deterministic injected. `POST /v1/validate` takes a multipart upload, a server-fetched URL, or a previously uploaded `blob_id`. Alongside it: `GET /v1/reports/:id`, `GET /v1/jobs/:id`, `GET /v1/account`, `POST /v1/uploads`, and an internal cron sweep.
 
-State lives in Neon Postgres: accounts and sha256-hashed keys, an append-only credit ledger with a materialized `account_balances` row, and a Postgres token-bucket rate limiter. Uploads and reports live in private Vercel Blob — presigned direct-to-Blob PUTs for large files, HMAC-signed webhooks over the exact body bytes, and a 30-day retention sweep run by a nightly cron. The `>20MB` path returns a `202` job envelope and runs behind the `JobQueue` seam via a `waitUntil` `BackgroundJobRunner`. A public, unauthenticated docs surface (schema endpoints serving the schemars bytes, an OpenAPI 3.1 doc that `$ref`s the published schema URLs, and `llms.txt` with the SPEC_03 privacy commitments verbatim) sits ahead of the authed subtree. Production is promoted and healthy, kept behind Vercel Authentication until the Phase 3 custom domain — deliberate, since the site and demo do not exist yet.
+The report leaves Rust once, as a string, and is passed through verbatim to the response, the stored blob and the job envelope. A byte-pin test holds `body === stored === a fresh wasm run`. The WASM build has GEO-009 (parry3d) on and is byte-identical to native across all 27 corpus assets.
+
+State is in Neon Postgres: accounts, sha256-hashed keys, an append-only credit ledger with a materialized `account_balances` row, and a token-bucket rate limiter. Uploads and reports live in private Vercel Blob, with presigned direct PUTs for large files, HMAC-signed webhooks over the exact body bytes, and a nightly cron enforcing 30-day retention. Files over 20MB get a `202` job envelope and run behind the `JobQueue` seam on a `waitUntil` `BackgroundJobRunner`.
+
+A public docs surface sits in front of the authed routes: schema endpoints serving the schemars bytes, an OpenAPI 3.1 doc that `$ref`s them, and `llms.txt` with the SPEC_03 privacy commitments verbatim. Production is promoted and healthy, kept behind Vercel Authentication until the Phase 3 custom domain, since there's no site or demo yet.
 
 ## Decisions
 
-The load-bearing decision, inherited from Phase 0, is that the report is a pure function of `(bytes, config)` serialized once in Rust; every TS layer treats it as opaque bytes. The credit charge and the token-bucket consume are each a single atomic Postgres statement whose guard lives on the row the statement itself updates — the only form that survives true concurrency. Two error codes (`BAD_REQUEST`, `NOT_FOUND`) were added to SPEC_03 in review, with the rule that input-detectable client errors are caught before `charge()`. Job transitions are terminal-is-terminal on both paths. The deploy shape — an entry-only `api/` directory, a self-contained esbuild bundle, WASM and config through `includeFiles`, and `waitUntil` in place of WDK — was forced by how Vercel resolves and counts functions, not by preference. See the `decisions` array for each rejected alternative.
+The one everything else hangs off, inherited from Phase 0: the report is a pure function of `(bytes, config)`, serialized once in Rust, and every TS layer treats it as opaque bytes.
+
+The credit charge and the token-bucket consume are each a single atomic Postgres statement whose guard lives on the row the statement updates. That's the only shape that survives real concurrency.
+
+Review added two error codes to SPEC_03, `BAD_REQUEST` and `NOT_FOUND`, with the rule that input-detectable client errors are caught before `charge()`. Job transitions are terminal-is-terminal on both paths.
+
+The deploy shape was forced, not chosen: an entry-only `api/` directory, a self-contained esbuild bundle, WASM and config via `includeFiles`, and `waitUntil` instead of WDK. That's how Vercel resolves and counts functions. The table has the rejected alternatives.
 
 ## What broke
 
-This phase had real failures, several caught only in review or only on the deployed instance.
+Plenty, and several only showed on the deployed instance.
 
-The first credit-charge CTE guarded on `SUM(delta)` in a subquery. It passed every sequential PGlite test and was wrong: under READ COMMITTED two concurrent charges snapshot the same sum, both pass, both insert, the balance goes negative. PGlite is single-threaded and could not surface it; review rejected it and the fix was the materialized-balance row-lock the spec had named all along.
+The first credit-charge CTE guarded on `SUM(delta)` in a subquery. It passed every sequential PGlite test and was wrong: under READ COMMITTED two concurrent charges snapshot the same sum, both pass, both insert, balance goes negative. PGlite is single-threaded and couldn't show it. Review rejected it, and the fix was the materialized-balance row lock the spec had named from the start.
 
-The `20 rps` load test collapsed to `1082 x 429` on a key rated `6000/min`. The suspected cause — a negative token-bucket refill from out-of-order `now` — was a real latent bug, clamped and regression-tested, but it did not move the number (`1082 -> 1081`). The actual cause was a wildcard `route.use('*')` on the `/`-mounted docs sub-app: the `60/min` public IP limiter ran on every authed route. The signature gave it away — `119` passes over `60s` is exactly `60 + 60` refilled, a `60/min` bucket, never `6000`. Scoping the limiter to the three docs routes fixed it; the load test then ran `1200/1200 -> 200`.
+The `20 rps` load test collapsed to `1082 x 429` on a key rated `6000/min`. I suspected a negative token-bucket refill from out-of-order `now`. That was a real latent bug, clamped and regression-tested, and it moved the number from `1082` to `1081`. The actual cause was a wildcard `route.use('*')` on the `/`-mounted docs sub-app, which ran the `60/min` public IP limiter on every authed route. The signature gave it away: `119` passes over `60s` is `60 + 60` refilled, a `60/min` bucket, not `6000`. Scoping the limiter to the three docs routes got the load test to `1200/1200 -> 200`.
 
-Three more surfaced on the preview deploy. `GET /v1/reports/:id` returned `404` right after a successful validate: the row was in Neon, but `VercelBlobStore.get()` fetched a private object URL with no authorization and got `403`, so the route saw the report as gone — one root cause behind report reads, async reads, and webhook re-reads. WDK's `start()` rejected the workflow function because the esbuild bundle stripped its `"use workflow"` directives to inert strings, forcing the `waitUntil` runner (reviewer-ratified). And `vercel build` minted `32` functions against the Hobby cap of `12` because every `.ts` under `api/` became a function, fixed by renaming to `server/` behind an entry-only `api/index.js`. An earlier boot bug dropped every response: `export default handle(app)` is invoked as the legacy `(req, res)` handler on the Node runtime, so Hono's `Response` was ignored until it became `{ fetch: handle(app) }`.
+Three more on the preview deploy. `GET /v1/reports/:id` returned `404` right after a successful validate. The row was in Neon, but `VercelBlobStore.get()` fetched a private object URL with no authorization and got `403`, so the route thought the report was gone. One root cause behind report reads, async reads and webhook re-reads. WDK's `start()` rejected the workflow function because esbuild stripped its `"use workflow"` directives to inert strings, which is why the `waitUntil` runner exists. And `vercel build` minted `32` functions against the Hobby cap of `12`, because every `.ts` under `api/` became a function. Fixed by renaming to `server/` behind an entry-only `api/index.js`.
+
+An earlier boot bug dropped every response. `export default handle(app)` gets invoked as the legacy `(req, res)` handler on the Node runtime, so Hono's `Response` was ignored until it became `{ fetch: handle(app) }`.
 
 ## Numbers
 
-The deploy gate ran against the deployed preview: `20 rps x 60s = 1200/1200 -> 200`, p50 `168 ms`, p95 `297 ms`, p99 `1037 ms`, `0 x 5xx`, `0 x 429`. WASM-vs-native parity is `27/27` byte-identical. Ledger concurrency on Neon: `30` parallel charges against `10` credits yielded exactly `10 x 200 / 20 x 402` with the balance never negative. The live cron sweep reclaimed a seeded expired report (row plus private blob), and the stuck-job path was exercised through the sweep's fail-out and refund. The local api suite is `125/125` across the vitest files, each on its own in-memory PGlite plus Blob plus the WASM bridge. Measurements are from the deployed preview and production on Vercel plus the dev machine for the local suites.
+Deploy gate against the deployed preview: `20 rps x 60s = 1200/1200 -> 200`, p50 `168 ms`, p95 `297 ms`, p99 `1037 ms`, zero 5xx, zero 429. WASM-vs-native parity `27/27` byte-identical. Ledger concurrency on Neon: `30` parallel charges against `10` credits gave exactly `10 x 200 / 20 x 402`, balance never negative. The live cron reclaimed a seeded expired report, row and blob, and the stuck-job path ran through the sweep's fail-out and refund. Local api suite is `125/125`, each vitest file on its own in-memory PGlite plus Blob plus the WASM bridge.
 
 ## Next
 
-Phase 2 adds the renderer as a second function (playwright-core plus a serverless Chromium build with Three.js), behind the existing `RenderBackend` seam. The gate is `render_hash` determinism validated on the deployed platform — fixed rig, fixed lighting, seeded, stable screenshot bytes across runs — after which the RND checks light up in `mode: "full"` and `RENDER_FAILED` becomes reachable.
+Phase 2 adds the renderer as a second function (playwright-core plus a serverless Chromium build with Three.js) behind the existing `RenderBackend` seam. The gate is `render_hash` determinism on the deployed platform: fixed rig, fixed lighting, seeded, stable screenshot bytes across runs. After that the RND checks light up in `mode: "full"` and `RENDER_FAILED` becomes reachable.

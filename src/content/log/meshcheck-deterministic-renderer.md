@@ -8,26 +8,26 @@ draft: false
 summary: "Phase 2 ships deterministic server-side rendering; the sustained deploy gates caught a /tmp leak that poisoned instances after twelve renders."
 repo_ref: "phase-2"
 decisions:
-  - what: "The determinism gate is exact-hash on deployed Vercel (rung 0 of the fallback ladder) — no region pinning, per-backend baselines, or external render worker"
+  - what: "The determinism gate is exact-hash on deployed Vercel (rung 0 of the fallback ladder), with no region pinning, per-backend baselines, or external render worker"
     why: "496/496 spike samples across 16 instances and two Xeon steppings produced one sha256 per model, identical to the Windows dev box; at phase close, 36/36 (asset, angle) cells held across 3 runs x 3 deploys and a CPU-tier change moved zero bytes"
     alternatives: ["pin the renderer to one region/instance family", "per-backend baseline hashes", "external GPU/CPU render worker behind the RenderBackend seam"]
   - what: "The renderer emits integer evidence only (pixel counts, bboxes, dimensions); every ratio, threshold, and verdict is computed in Rust against checks.toml"
     why: "Float formatting in TS must never influence the report; integers cross the wasm boundary exactly, and the thresholds-are-data rule stays enforceable in one place"
     alternatives: ["quantized floats computed in TS", "verdicts computed in TS and injected as check results"]
-  - what: "Render state on CheckContext is a three-way enum — NotRun ⇒ RND skipped, Failed ⇒ RND engine-error with partial confidence, Evidence ⇒ verdicts"
+  - what: "Render state on CheckContext is a three-way enum: NotRun ⇒ RND skipped, Failed ⇒ RND engine-error with partial confidence, Evidence ⇒ verdicts"
     why: "checks_only and a crashed renderer are different truths: skipped says we did not look, error says the instrument broke; the Failed path is the SPEC_04 crash-isolation contract"
     alternatives: ["Option<RenderEvidence> (conflates not-run with failed)", "TS-side verdict injection"]
   - what: "Model bytes and raw frames never cross the function boundary: the API stages a payload envelope to private Blob, the renderer uploads finished PNGs/GIFs itself, and only integer evidence plus blob keys travel over HTTP (intra-deployment via VERCEL_URL, renderer behind its own header secret)"
-    why: "Vercel function bodies cap at 4.5MB in both directions — a 25MB model, twelve 1024px stills, or 36 raw RGBA frames (~37.7MB) all breach it; VERCEL_URL pins the call to the same deployment (same chromium build), and the production domain is not deployment-protected so the renderer needs its own auth"
+    why: "Vercel function bodies cap at 4.5MB in both directions; a 25MB model, twelve 1024px stills, or 36 raw RGBA frames (~37.7MB) all breach it; VERCEL_URL pins the call to the same deployment (same chromium build), and the production domain is not deployment-protected so the renderer needs its own auth"
     alternatives: ["inline base64 bodies (fails at documented size cliffs)", "streaming responses", "importing the renderer as a module (incompatible function shapes)"]
   - what: "Chromium launches per request into a mkdtemp'd profile removed in the same finally, plus an age-gated stale-dir sweep at handler start; never a module-scope shared browser"
-    why: "Shared browsers give shared-fate crashes, and unremoved profiles exhaust /tmp — the exact failure the phase gate later caught in production; warm launch is ~50-70ms against an 8s budget, so per-request isolation costs nothing that matters"
+    why: "Shared browsers give shared-fate crashes, and unremoved profiles exhaust /tmp, the exact failure the phase gate later caught in production; warm launch is ~50-70ms against an 8s budget, so per-request isolation costs nothing that matters"
     alternatives: ["module-scope shared browser", "context pool within one invocation", "launch() with a profile arg (playwright rejects --user-data-dir; launchPersistentContext output verified byte-identical)"]
   - what: "Turntables are GIF-only in v1 (mp4 ⇒ BAD_REQUEST), encoded inside the render function with one global palette from frame 0; the Screenshot render_hash is the sha256 of the concatenated per-frame hashes"
     why: "The finished GIF (~470KB for Duck) goes straight to Blob under the body cap; the global palette measured ~266ms vs ~2.7s per-frame for 36x512^2 and removes palette shimmer; hash-of-hashes keeps the contract independent of encoder internals"
     alternatives: ["mp4 encoding", "per-frame palettes", "hashing the GIF bytes"]
   - what: "The /render RenderReport envelope is assembled in Rust via a render_report wasm export, with no native-CLI twin"
-    why: "One-serializer discipline — JS never builds report-family JSON; the surface is hosted-only, so parity has no consumer, and byte-stability is covered by a double-call integration test"
+    why: "One-serializer discipline: JS never builds report-family JSON; the surface is hosted-only, so parity has no consumer, and byte-stability is covered by a double-call integration test"
     alternatives: ["TS-built envelope", "full native CLI twin plus a parity row"]
   - what: "Hosted functions run on the Performance CPU tier (4GB/2 vCPU) with Fluid in-function concurrency left on"
     why: "Measured on the gate corpus: the tier bump cut single renders ~15% and c4 p95 from 13,498-13,760ms to 8,922ms; disabling packing flattened the extreme tail (p99 12,711 ⇒ 9,702ms) but raised p50 by ~0.9s and left p95 at 9,190ms, so it was reverted"
@@ -50,7 +50,7 @@ benchmarks:
     target: "< 10s at c4 AND < 8s sequential (revised 2026-07-14)"
   - metric: "full validate c4 p95 across configs (60 requests each)"
     value: "legacy tier 13,760/13,498ms; Performance + packing 8,922ms; Performance packing-off 9,190ms (p99 9,702ms)"
-    target: "informational — the lever measurements behind the standing config"
+    target: "informational; the lever measurements behind the standing config"
   - metric: "checks_only load regression during the concurrency experiment"
     value: "1200/1200 ⇒ 200 at 20 rps x 60s, p50 159ms, p95 245ms, 0x5xx"
     target: "Phase 1 row stays green (p95 < 4s)"
@@ -61,26 +61,28 @@ benchmarks:
 
 ## What shipped
 
-Rendering went from spec to product surface. The `renderer/` package carries the deterministic harness built in P2M2 — the `studio` rig, one whole-scene camera fit shared across all angles, Draco/meshopt/KTX2 decoders, and a `RenderBackend` seam — and now also the deployed form: `api/render-internal`, a Vercel Large Function running `@sparticuz/chromium` under playwright-core, gated by its own header secret and invoked intra-deployment by the API.
+Rendering went from spec to product surface.
 
-`meshcheck-core` owns the judgment. RND-001/002/003 are registry checks fed by injected integer evidence; `validate_with_render` and `render_report` are new wasm exports; screenshots ride `Report::assemble`'s existing slot. On top of that: `/v1/validate` full mode (Blob staging, six angles, signed `/s/` screenshot URLs bound to report expiry, 2 credits), `/v1/render` returning the Rust-assembled RenderReport, async turntable GIFs, a `RENDER_FAILED` error that is reachable only where the render is the product, and an `invisible` corpus mutation only RND-002 can catch.
+The `renderer/` package carries the deterministic harness from P2M2: the `studio` rig, one whole-scene camera fit shared across all angles, Draco/meshopt/KTX2 decoders, and a `RenderBackend` seam. It now also carries the deployed form, `api/render-internal`, a Vercel Large Function running `@sparticuz/chromium` under playwright-core, gated by its own header secret and called intra-deployment by the API.
+
+`meshcheck-core` owns the judgment. RND-001/002/003 are registry checks fed by injected integer evidence. `validate_with_render` and `render_report` are new wasm exports, and screenshots ride `Report::assemble`'s existing slot. On top: `/v1/validate` full mode (Blob staging, six angles, signed `/s/` screenshot URLs that expire with the report, 2 credits), `/v1/render` returning the Rust-assembled RenderReport, async turntable GIFs, a `RENDER_FAILED` error that's only reachable where the render is the product, and an `invisible` corpus mutation that only RND-002 can catch.
 
 ## Decisions
 
-The frontmatter carries all nine. The chain that matters most runs through the phase: the P2M1 spike earned the exact-hash gate with 496/496 deployed samples, P2M2 froze the integer-evidence contract that makes TS incapable of influencing verdicts, and P2M5 stress-tested the whole stack — including a CPU-tier migration mid-gate that moved zero hash bytes. The one revised number of the phase is the latency target, and the revision is a decision with named rejected alternatives, not a quiet edit.
+All nine are in the table. The chain through the phase: the P2M1 spike earned the exact-hash gate with 496/496 deployed samples, P2M2 froze the integer-evidence contract so TS can't influence a verdict, and P2M5 stress-tested the whole stack, including a CPU-tier migration mid-gate that moved zero hash bytes. The one number that changed is the latency target, and that change is a listed decision with rejected alternatives, not a quiet edit.
 
 ## What broke
 
-The centerpiece: **the deployed renderer poisoned its instance after ~12 renders.** The P2M4 plan said "clean the per-launch /tmp profile dir"; the implementation closed the browser but never removed profiles. Hermetic tests and short smokes could not see it. The phase gate's sustained runs hit it in minutes — renders 1-12 byte-correct, render 13 onward failing in ~1.2s with `render function 500`, instance-local, no self-heal, sometimes preceded by blank frames hashing `30e14955…`. Diagnosis was initially blinded because the API discarded renderer 5xx bodies. The fix (9c5dbab) is a per-request mkdtemp profile via `launchPersistentContext` removed in the same `finally`, an age-gated stale sweep, surfaced 5xx bodies, and — same commit — async render jobs learned to unzip bundles, which the gate also exposed.
+The big one: **the deployed renderer poisoned its own instance after about 12 renders.** The P2M4 plan said to clean the per-launch /tmp profile dir. The implementation closed the browser and never removed the profiles. Hermetic tests and short smokes couldn't see it. The phase gate's sustained runs hit it within minutes: renders 1 through 12 byte-correct, render 13 onward failing in about 1.2s with `render function 500`, instance-local, no self-heal, sometimes preceded by blank frames hashing `30e14955…`. Diagnosis took longer than it should have because the API discarded renderer 5xx bodies. The fix (9c5dbab) is a per-request mkdtemp profile via `launchPersistentContext` removed in the same `finally`, an age-gated stale sweep, and surfaced 5xx bodies. Same commit, async render jobs learned to unzip bundles, which the gate also caught.
 
-The latency gate then failed honestly three times: 13.8s, 8.9s after the Performance-tier flip, 9.2s with packing disabled (reverted — worse p50, no p95 gain). We revised the threshold rather than disguise queueing as latency.
+The latency gate failed three times: 13.8s, 8.9s after the Performance-tier flip, 9.2s with packing disabled (reverted, worse p50 and no p95 gain). I revised the threshold rather than dress queueing up as latency.
 
-Smaller breaks: the `/s/` routes 404'd on first deploy (vercel.json rewrite missing — app mounting and platform routing are separate truths); KTX2Loader's multiline `ktx-parse` import slipped past the vendor sweep; sparticuz v149 required dynamic-import over `require` (`ERR_REQUIRE_ESM`); gifenc has no ESM named exports; review upgraded the internal-key check to a constant-time compare.
+Smaller: the `/s/` routes 404'd on first deploy because the vercel.json rewrite was missing (app mounting and platform routing are two separate truths). KTX2Loader's multiline `ktx-parse` import slipped past the vendor sweep. sparticuz v149 needs dynamic import over `require` (`ERR_REQUIRE_ESM`). gifenc has no ESM named exports. Review upgraded the internal-key check to a constant-time compare.
 
 ## Numbers
 
-Gate evidence lives in `bench_results/phase2-determinism.json`: 36 (asset, angle) cells, one hash each, across three runs on three separate deployments, equal to the local table — FlightHelmet traveling as a 47MB zip through the async path. Latency was measured as the `/v1/validate` POST span (staging PUTs excluded, disclosed), 60 requests at concurrency 4 plus a 10-request sequential sample; the config comparison in the frontmatter is what justified the standing tier. The checks_only load row was re-run mid-experiment and came back better than its Phase 1 value (p95 245ms vs 297ms).
+Gate evidence is in `bench_results/phase2-determinism.json`: 36 (asset, angle) cells, one hash each, across three runs on three separate deployments, equal to the local table. FlightHelmet went through the async path as a 47MB zip. Latency was measured as the `/v1/validate` POST span, staging PUTs excluded and disclosed: 60 requests at concurrency 4 plus a 10-request sequential sample. The config comparison in the table is what justified the standing tier. The checks_only load row got re-run mid-experiment and came back better than Phase 1 (p95 245ms vs 297ms).
 
 ## Next
 
-Phase 3 is distribution: the `meshcheck-mcp` npm package, the Astro site with the drag-and-drop demo on a browser key, and cookbook drafts. Its gate wants a recorded agent transcript naming a real defect, a sub-10s browser demo, and Lighthouse ≥ 90 on the landing page.
+Phase 3 is distribution: the `meshcheck-mcp` npm package, the Astro site with a drag-and-drop demo on a browser key, and cookbook drafts. Its gate wants a recorded agent transcript naming a real defect, a sub-10s browser demo, and Lighthouse ≥ 90 on the landing page.

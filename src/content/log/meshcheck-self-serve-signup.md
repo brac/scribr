@@ -48,9 +48,9 @@ The auth question had a strong gravitational pull toward frameworks. Research se
 
 ## What broke
 
-The launch-blocking find came from the live gate, not the suite: the first real signup email's link showed "expired" before its owner ever clicked it. Gmail's link scanner had prefetched the GET and burned the single-use token — the mechanism worked perfectly, for a robot. The fix is the standard interstitial: GET is now side-effect-free and returns a tiny auto-submitting form; only the POST claims the token. The re-test with a human click passed, and repeated GETs on a used link are inert.
+The launch-blocking find came from the live gate, not the suite: the first real signup email's link showed "expired" before its owner ever clicked it. Gmail's link scanner had prefetched the GET and burned the single-use token. The mechanism worked perfectly, for a robot. The fix is the standard interstitial: GET is now side-effect-free and returns a tiny auto-submitting form; only the POST claims the token. The re-test with a human click passed, and repeated GETs on a used link are inert.
 
-Two false alarms are worth recording. A deployed cookie-tamper probe returned 200 and looked like an HMAC bypass; the "tamper" had replaced the cookie's last character with the same character. Redone with guaranteed changes it returned 401 both ways. And right after the production promote, `/signup/` returned 404 with the correct page body — a stale CDN entry from the pre-promote deployment, gone on the next requests. One real deploy stumble: `vercel deploy --prebuilt --prod` rejects a preview-built output; production needs its own `vercel build --prod` first.
+Two false alarms are worth recording. A deployed cookie-tamper probe returned 200 and looked like an HMAC bypass; the "tamper" had replaced the cookie's last character with the same character. Redone with guaranteed changes it returned 401 both ways. And right after the production promote, `/signup/` returned 404 with the correct page body, a stale CDN entry from the pre-promote deployment, gone on the next requests. One real deploy stumble: `vercel deploy --prebuilt --prod` rejects a preview-built output; production needs its own `vercel build --prod` first.
 
 ## Numbers
 
